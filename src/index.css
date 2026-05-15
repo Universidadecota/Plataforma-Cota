@@ -1,0 +1,80 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 120 10% 97%;
+    --foreground: 150 30% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 150 30% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 30% 8%;
+    --primary: 150 37% 16%;
+    --primary-foreground: 45 60% 90%;
+    --secondary: 120 8% 92%;
+    --secondary-foreground: 150 30% 15%;
+    --muted: 120 6% 94%;
+    --muted-foreground: 150 10% 45%;
+    --accent: 42 55% 54%;
+    --accent-foreground: 150 37% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 120 10% 88%;
+    --input: 120 10% 88%;
+    --ring: 150 37% 16%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-cota-bg text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
+  }
+  .sidebar-item-active {
+    @apply bg-cota-gold/20 text-cota-gold border-l-2 border-cota-gold;
+  }
+  .sidebar-item-default {
+    @apply text-white/70 hover:bg-white/10 hover:text-white;
+  }
+  .stat-card {
+    @apply bg-white rounded-xl p-5 shadow-sm border border-gray-100;
+  }
+  .page-header {
+    @apply text-2xl font-bold text-cota-green mb-1;
+  }
+  .page-subtitle {
+    @apply text-sm text-gray-500 mb-6;
+  }
+  .badge-level-beginner {
+    @apply bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-0.5 rounded-full;
+  }
+  .badge-level-intermediate {
+    @apply bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-0.5 rounded-full;
+  }
+  .badge-level-advanced {
+    @apply bg-purple-100 text-purple-700 text-xs font-semibold px-2.5 py-0.5 rounded-full;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C9A84C44; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #C9A84C88; }
+
+/* Certificate print styles */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+}
