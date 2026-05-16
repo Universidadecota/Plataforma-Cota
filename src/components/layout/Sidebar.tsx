@@ -1,13 +1,11 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
-  LayoutDashboard, BookOpen, FolderOpen, MessageSquare,
-  ShieldAlert, Trophy, Award, Bell, Users, Settings,
+  LayoutDashboard, BookOpen, ShieldAlert, Trophy, Award, Bell, Users, Settings,
   LogOut, GraduationCap, MessageCircle, BarChart3, X,
   FileText, Video, Briefcase, Sparkles
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS } from "@/constants";
 
@@ -52,12 +50,21 @@ interface SidebarProps {
 export default function Sidebar({ onClose }: SidebarProps) {
   const { user } = useAuthStore();
   const { signOut } = useAuth();
-  const navigate = useNavigate();
 
+  // Função BLINDADA para forçar a saída do sistema
   const handleSignOut = async () => {
-    await signOut();
-    toast.success("Sessão encerrada com sucesso.");
-    navigate("/login");
+    try {
+      // Tenta sair educadamente do Supabase
+      await signOut();
+    } catch (error) {
+      console.warn("Erro silencioso ao sair:", error);
+    } finally {
+      // Independentemente do que aconteça, limpa a memória do navegador à força
+      localStorage.clear();
+      sessionStorage.clear();
+      // Recarrega a página direcionando direto para o login
+      window.location.href = "/login";
+    }
   };
 
   const visibleItems = navItems.filter(
@@ -132,7 +139,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         </div>
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           Sair
