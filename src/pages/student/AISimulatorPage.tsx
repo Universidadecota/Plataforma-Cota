@@ -9,22 +9,64 @@ type Persona = { id: string; name: string; description: string; greeting: string
 
 const PERSONAS: Persona[] = [
   {
-    id: "frio",
-    name: "Marcos (Cliente Desconfiado)",
-    description: "Acha que consórcio demora muito e prefere financiamento. É impaciente e cético.",
-    greeting: "Olá. Vi o anúncio de vocês, mas já vou avisando que tenho pressa para pegar a chave da minha casa. Consórcio demora muito, não é?"
+    id: "contemplacao",
+    name: "Patrícia (Medo de não ser contemplada)",
+    description: "Insegura. Tem o dinheiro da parcela, mas acha que vai pagar a vida toda e nunca vai pegar o bem.",
+    greeting: "Oi, vi o anúncio. Mas eu tenho muito azar em sorteio. Se eu pagar e nunca for sorteada, vou ficar a vida inteira sem o imóvel?"
+  },
+  {
+    id: "urgencia",
+    name: "Roberto (Precisa pra ontem)",
+    description: "Imediatista. Precisa do carro urgente para trabalhar e não entende a lógica da espera.",
+    greeting: "Amigo, eu preciso de um carro pra semana que vem porque mudei de emprego. Consórcio libera o dinheiro rápido na hora que assina?"
+  },
+  {
+    id: "financiamento",
+    name: "Sérgio (Defensor do Financiamento)",
+    description: "Calculista de curto prazo. Sabe que o juro é alto, mas prefere a garantia de ter a chave na mão logo.",
+    greeting: "Cara, no financiamento eu pago juros mas pego a chave amanhã. Por que eu vou ficar pagando consórcio sem saber quando vou morar na casa?"
+  },
+  {
+    id: "demora",
+    name: "Marcos (Impaciente)",
+    description: "Acha que consórcio demora muito, tem pressa, não tem paciência para assembleias.",
+    greeting: "Boa tarde. 'Entrega programada' pra mim soa como 'vai demorar uma eternidade'. Não tenho paciência pra esperar assembleia não."
+  },
+  {
+    id: "trauma",
+    name: "Ricardo (Traumatizado)",
+    description: "Já teve um familiar que perdeu dinheiro com empresa de consórcio que faliu. É desconfiado e na defensiva.",
+    greeting: "Meu tio já perdeu 20 mil numa empresa de consórcio que sumiu do mapa. A verdade é que esse negócio é uma furada, não é?"
+  },
+  {
+    id: "parcela",
+    name: "Fernando (Inseguro Financeiro)",
+    description: "Tem medo da parcela aumentar e perder o controle financeiro da família.",
+    greeting: "Eu vi a simulação, a parcela cabe no bolso hoje. Mas eu soube que ela sobe todo ano. Tenho medo de não conseguir pagar lá na frente."
+  },
+  {
+    id: "desistencia",
+    name: "João (O Precavido)",
+    description: "Tem medo de ficar desempregado e não saber como sair do grupo sem perder tudo.",
+    greeting: "E se eu fechar, pagar um ano e ficar desempregado? Vou perder todo o meu dinheiro que já coloquei no grupo?"
+  },
+  {
+    id: "golpe",
+    name: "Juliana (Medo de Golpe Digital)",
+    description: "Desconfia de vendas pela internet, tem medo de assinar contrato sem ver a pessoa e mandar documentos.",
+    greeting: "Tudo muito bonito, mas eu não assino contrato por WhatsApp nem mando meus documentos pra quem eu nunca vi. Como vou saber que não é golpe?"
+  },
+  {
+    id: "terceiriza",
+    name: "Silvia (Precisa falar com o marido)",
+    description: "Gostou da proposta, mas nunca toma decisão sozinha. Usa o marido como escudo para não fechar na hora.",
+    greeting: "Eu adorei a simulação, achei que a parcela ficou boa. Mas eu não posso fechar nada sem falar com meu marido antes, ele que cuida dessa parte."
   },
   {
     id: "investidor",
     name: "Ana (Perfil Investidora)",
     description: "Tem dinheiro guardado, quer fugir dos juros, mas compara tudo com o rendimento da poupança e CDI.",
-    greeting: "Oi! Tenho um valor guardado na poupança e pensei em usar para comprar um carro mais novo. Por que eu faria um consórcio em vez de comprar à vista?"
-  },
-  {
-    id: "curioso",
-    name: "Carlos (Iniciante)",
-    description: "Não entende absolutamente nada de consórcio, taxa de administração ou lances. Faz muitas perguntas básicas.",
-    greeting: "Boa tarde. Um amigo me falou que consórcio não tem juros, mas não entendi muito bem. Como a administradora ganha dinheiro então?"
+    greeting: "Oi! Tenho um valor guardado na poupança. Mas se eu der lance, não perco o rendimento que o banco me paga?"
   }
 ];
 

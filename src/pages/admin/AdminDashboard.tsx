@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { Users, BookOpen, Bell, Settings, Plus, Edit2, Trash2, Eye, EyeOff, MessageCircle, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { ROLE_LABELS } from "@/constants";
 import { formatDate } from "@/lib/utils";
 import type { UserProfile, Course, Announcement, WhatsAppScript, Objection } from "@/types";
 
@@ -16,7 +15,9 @@ export default function AdminDashboard() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [scripts, setScripts] = useState<WhatsAppScript[]>([]);
   const [objections, setObjections] = useState<Objection[]>([]);
+  
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Formulário de Comunicados
   const [showAnnForm, setShowAnnForm] = useState(false);
@@ -25,9 +26,10 @@ export default function AdminDashboard() {
   const [annPriority, setAnnPriority] = useState("normal");
   const [annTargetRole, setAnnTargetRole] = useState("");
 
-  // Formulário de Trilhas
+  // Formulário de Trilhas (AGORA COM DESCRIÇÃO)
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [courseTitle, setCourseTitle] = useState("");
+  const [courseDescription, setCourseDescription] = useState(""); // Novo campo
   const [courseCategory, setCourseCategory] = useState("Fundamentos");
   const [courseLevel, setCourseLevel] = useState("beginner");
 
@@ -45,18 +47,19 @@ export default function AdminDashboard() {
   const [objTips, setObjTips] = useState("");
 
   useEffect(() => {
-    loadAll();
+    loadAll(true);
   }, []);
 
-  async function loadAll() {
+  async function loadAll(isInitial = false) {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      
       const [
-        { data: u, error: errU },
-        { data: c, error: errC },
-        { data: a, error: errA },
-        { data: s, error: errS },
-        { data: o, error: errO }
+        { data: u },
+        { data: c },
+        { data: a },
+        { data: s },
+        { data: o }
       ] = await Promise.all([
         supabase.from("user_profiles").select("*").order("created_at", { ascending: false }),
         supabase.from("courses").select("*").order("order_index"),
@@ -65,18 +68,16 @@ export default function AdminDashboard() {
         supabase.from("objections").select("*").order("created_at", { ascending: false }),
       ]);
 
-      if (errU || errC || errA || errS || errO) throw new Error("Erro ao carregar dados.");
-
       setUsers(u || []);
       setCourses(c || []);
       setAnnouncements(a || []);
       setScripts(s || []);
       setObjections(o || []);
     } catch (error) {
-      console.error(error);
-      toast.error("Houve um problema ao carregar as informações do painel.");
+      console.error("Erro ao carregar dados:", error);
+      toast.error("Houve um problema ao sincronizar os dados.");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }
 
@@ -84,10 +85,13 @@ export default function AdminDashboard() {
   const submitCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!courseTitle) { toast.error("Preenche o título da trilha."); return; }
+    if (!courseDescription) { toast.error("A descrição é importante para os alunos."); return; }
+
     try {
-      setLoading(true);
+      setSaving(true);
       const { data: newCourse, error: courseErr } = await supabase.from("courses").insert({
         title: courseTitle,
+        description: courseDescription, // O campo novo a ser enviado
         category: courseCategory,
         level: courseLevel,
         duration_hours: 1, 
@@ -96,36 +100,38 @@ export default function AdminDashboard() {
 
       if (courseErr) throw courseErr;
 
-      await supabase.from("modules").insert({
+      // Cria automaticamente o Módulo 1 ao criar a trilha
+      const { error: modErr } = await supabase.from("modules").insert({
         course_id: newCourse.id,
         title: "Módulo 1 - Introdução",
         order_index: 1
       });
 
-      toast.success("Trilha criada! Agora adiciona as aulas.");
+      if (modErr) throw modErr;
+
+      toast.success("Trilha criada com sucesso!");
       setShowCourseForm(false);
       setCourseTitle("");
-      loadAll();
-    } catch (error) {
+      setCourseDescription("");
+      await loadAll(false);
+    } catch (error: any) {
       console.error(error);
       toast.error("Erro ao criar a trilha.");
     } finally {
-      setLoading(false);
+      setSaving(false); // Força o botão a voltar ao normal
     }
   };
 
   const deleteCourse = async (id: string) => {
-    if (!confirm("⚠️ ATENÇÃO: Excluir esta trilha apagará TODOS os módulos, aulas e avaliações vinculados a ela. Desejas realmente excluir?")) return;
+    if (!confirm("⚠️ ATENÇÃO: Excluir esta trilha apagará TODOS os módulos e aulas. Deseja excluir?")) return;
     try {
-      setLoading(true);
       const { error } = await supabase.from("courses").delete().eq("id", id);
       if (error) throw error;
-      toast.success("Trilha excluída com sucesso.");
-      loadAll();
+      toast.success("Trilha excluída.");
+      await loadAll(false);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao excluir a trilha.");
-      setLoading(false);
     }
   };
 
@@ -159,7 +165,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!annTitle || !annContent) { toast.error("Preenche título e conteúdo."); return; }
     try {
-      setLoading(true);
+      setSaving(true);
       const { error } = await supabase.from("announcements").insert({
         title: annTitle,
         content: annContent,
@@ -171,11 +177,12 @@ export default function AdminDashboard() {
       toast.success("Comunicado publicado!");
       setShowAnnForm(false);
       setAnnTitle(""); setAnnContent(""); setAnnPriority("normal"); setAnnTargetRole("");
-      loadAll();
+      await loadAll(false);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao criar comunicado.");
-      setLoading(false);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -195,9 +202,9 @@ export default function AdminDashboard() {
   // --- Funções de Scripts ---
   const submitScript = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scriptTitle || !scriptContent) { toast.error("Preenche título e conteúdo do script."); return; }
+    if (!scriptTitle || !scriptContent) { toast.error("Preenche título e conteúdo."); return; }
     try {
-      setLoading(true);
+      setSaving(true);
       const { error } = await supabase.from("whatsapp_scripts").insert({
         title: scriptTitle,
         category: scriptCategory,
@@ -207,11 +214,12 @@ export default function AdminDashboard() {
       toast.success("Script criado com sucesso!");
       setShowScriptForm(false);
       setScriptTitle(""); setScriptContent("");
-      loadAll();
+      await loadAll(false);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao criar script.");
-      setLoading(false);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -233,7 +241,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!objTitle || !objResponse) { toast.error("Preenche a objeção e a resposta."); return; }
     try {
-      setLoading(true);
+      setSaving(true);
       const { error } = await supabase.from("objections").insert({
         objection: objTitle,
         category: objCategory,
@@ -244,11 +252,12 @@ export default function AdminDashboard() {
       toast.success("Objeção registada com sucesso!");
       setShowObjForm(false);
       setObjTitle(""); setObjResponse(""); setObjTips("");
-      loadAll();
+      await loadAll(false);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao criar objeção.");
-      setLoading(false);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -316,7 +325,7 @@ export default function AdminDashboard() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-16 w-full">
           <div className="w-8 h-8 border-4 border-cota-green border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
@@ -393,6 +402,15 @@ export default function AdminDashboard() {
                         placeholder="Ex: Como Vender Consórcio de Imóveis"
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green" />
                     </div>
+                    
+                    {/* NOVO CAMPO: DESCRIÇÃO */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Descrição (Resumo para o aluno)</label>
+                      <textarea value={courseDescription} onChange={(e) => setCourseDescription(e.target.value)}
+                        placeholder="Ex: Base essencial para entender consórcio, carta de crédito, assembleias..." rows={3}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green resize-none" />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Categoria</label>
@@ -415,13 +433,13 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => setShowCourseForm(false)}
+                      <button type="button" onClick={() => setShowCourseForm(false)} disabled={saving}
                         className="flex-1 border border-gray-200 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                         Cancelar
                       </button>
-                      <button type="submit"
-                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors">
-                        Criar Trilha
+                      <button type="submit" disabled={saving}
+                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+                        {saving ? "Salvando..." : "Criar Trilha"}
                       </button>
                     </div>
                   </form>
@@ -515,13 +533,13 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => setShowAnnForm(false)}
+                      <button type="button" onClick={() => setShowAnnForm(false)} disabled={saving}
                         className="flex-1 border border-gray-200 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                         Cancelar
                       </button>
-                      <button type="submit"
-                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors">
-                        Publicar
+                      <button type="submit" disabled={saving}
+                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+                        {saving ? "Publicando..." : "Publicar"}
                       </button>
                     </div>
                   </form>
@@ -598,13 +616,13 @@ export default function AdminDashboard() {
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green resize-none" />
                     </div>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => setShowScriptForm(false)}
+                      <button type="button" onClick={() => setShowScriptForm(false)} disabled={saving}
                         className="flex-1 border border-gray-200 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                         Cancelar
                       </button>
-                      <button type="submit"
-                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors">
-                        Salvar Script
+                      <button type="submit" disabled={saving}
+                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+                        {saving ? "Salvando..." : "Salvar Script"}
                       </button>
                     </div>
                   </form>
@@ -630,7 +648,7 @@ export default function AdminDashboard() {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-100 font-mono text-xs text-gray-600">
+                      <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-100 font-mono text-xs text-gray-600 whitespace-pre-wrap">
                         {script.content}
                       </div>
                     </div>
@@ -687,13 +705,13 @@ export default function AdminDashboard() {
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green" />
                     </div>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => setShowObjForm(false)}
+                      <button type="button" onClick={() => setShowObjForm(false)} disabled={saving}
                         className="flex-1 border border-gray-200 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                         Cancelar
                       </button>
-                      <button type="submit"
-                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors">
-                        Salvar Objeção
+                      <button type="submit" disabled={saving}
+                        className="flex-1 bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+                        {saving ? "Salvando..." : "Salvar Objeção"}
                       </button>
                     </div>
                   </form>
