@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, XCircle, Clock, BookOpen, Trophy } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 import { POINTS_PER_QUIZ } from "@/constants";
@@ -23,21 +22,68 @@ export default function QuizzesPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data: quizData, error: errQuiz } = await supabase
-          .from("quizzes")
-          .select("*, courses(title), quiz_questions(*, quiz_options(*))")
-          .order("created_at");
-        if (errQuiz) throw errQuiz;
-
-        const { data: attData, error: errAtt } = await supabase
-          .from("quiz_attempts")
-          .select("*")
-          .eq("student_id", user!.id);
-        if (errAtt) throw errAtt;
+        const [quizData, attData] = await Promise.all([
+          directApiCall(
+            "quizzes", 
+            "GET", 
+            undefined, 
+            "select=*,courses(title),quiz_questions(*,quiz_options(*))&order=created_at.asc"
+          ),
+          directApiCall(
+            "quiz_attempts",
+            "GET",
+            undefined,
+            `student_id=eq.${user!.id}&select=*`
+          )
+        ]);
 
         setQuizzes(quizData as QuizWithCourse[] || []);
         setAttempts(attData || []);
@@ -79,18 +125,17 @@ export default function QuizzesPage() {
     const passed = score >= activeQuiz.passing_score;
 
     try {
-      const { error } = await supabase.from("quiz_attempts").insert({
+      await directApiCall("quiz_attempts", "POST", {
         student_id: user!.id,
         quiz_id: activeQuiz.id,
         score,
         passed,
         answers,
       });
-      if (error) throw error;
 
       if (passed) {
         const newPoints = (user?.points || 0) + POINTS_PER_QUIZ;
-        await supabase.from("user_profiles").update({ points: newPoints }).eq("id", user!.id);
+        await directApiCall("user_profiles", "PATCH", { points: newPoints }, `id=eq.${user!.id}`);
         updatePoints(newPoints);
         toast.success(`Aprovado! +${POINTS_PER_QUIZ} pontos!`);
       } else {

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Copy, Check, Search, MessageCircle, Filter } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { WhatsAppScript } from "@/types";
 
@@ -11,15 +10,60 @@ export default function WhatsAppScriptsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [copied, setCopied] = useState<string | null>(null);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("whatsapp_scripts")
-          .select("*")
-          .order("created_at", { ascending: false });
-        if (error) throw error;
+        const data = await directApiCall(
+          "whatsapp_scripts", 
+          "GET", 
+          undefined, 
+          "select=*&order=created_at.desc"
+        );
         setScripts(data || []);
       } catch (error) {
         console.error(error);

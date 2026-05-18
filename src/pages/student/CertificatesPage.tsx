@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Award, Download, Calendar, Hash, ExternalLink } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -16,19 +15,62 @@ export default function CertificatesPage() {
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState<string | null>(null);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("certificates")
-          .select("*, courses(*)")
-          .eq("student_id", user!.id)
-          .order("issued_at", { ascending: false });
+        const data = await directApiCall(
+          'certificates', 
+          'GET', 
+          undefined, 
+          `student_id=eq.${user!.id}&select=*,courses(*)&order=issued_at.desc`
+        );
           
-        if (error) throw error;
-        
-        setCertificates(data as CertWithCourse[] || []);
+        setCertificates((data as CertWithCourse[]) || []);
       } catch (error) {
         console.error("Erro ao carregar certificados:", error);
         toast.error("Ocorreu um erro ao carregar os teus certificados.");
@@ -110,7 +152,6 @@ export default function CertificatesPage() {
           {certificates.map((cert) => (
             <div key={cert.id}
               className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-              {/* Certificate visual header */}
               <div className="bg-gradient-to-br from-cota-green-dark to-cota-green p-6 text-center relative overflow-hidden">
                 <div className="absolute inset-0 opacity-5">
                   <div className="absolute top-2 left-2 w-24 h-24 rounded-full border-4 border-white" />

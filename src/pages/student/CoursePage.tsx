@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ChevronLeft, Clock, BookOpen, ChevronDown, ChevronUp, CheckCircle, Circle, Play, Award, FileText } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_IMAGES, DEFAULT_COURSE_IMAGE, LEVEL_LABELS } from "@/constants";
 import { toast } from "sonner";
@@ -22,43 +21,88 @@ export default function CoursePage() {
   const [expandedModules, setExpandedModules] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS"
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data: courseData, error: courseErr } = await supabase.from("courses").select("*").eq("id", id).single();
-        if (courseErr) throw courseErr;
-        if (!courseData) return;
-        setCourse(courseData);
+        const courseDataArr = await directApiCall('courses', 'GET', undefined, `id=eq.${id}&select=*`);
+        if (!courseDataArr || courseDataArr.length === 0) return;
+        setCourse(courseDataArr[0]);
 
-        const { data: modulesData, error: modErr } = await supabase.from("modules").select("*").eq("course_id", id).order("order_index");
-        if (modErr) throw modErr;
+        const modulesData = await directApiCall('modules', 'GET', undefined, `course_id=eq.${id}&select=*`);
+        
+        // Ordem JS (A-Z) para módulos
+        const sortedModules = (modulesData || []).sort((a: any, b: any) => 
+            String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+        );
 
         const modulesWithLessons: ModuleWithLessons[] = [];
-        for (const mod of modulesData || []) {
-          const { data: lessonsData, error: lessErr } = await supabase.from("lessons").select("*").eq("module_id", mod.id).order("order_index");
-          if (lessErr) throw lessErr;
-          modulesWithLessons.push({ ...mod, lessons: lessonsData || [] });
+        for (const mod of sortedModules) {
+          const lessonsData = await directApiCall('lessons', 'GET', undefined, `module_id=eq.${mod.id}&select=*`);
+          // Ordem JS (A-Z) para aulas
+          const sortedLessons = (lessonsData || []).sort((a: any, b: any) => 
+            String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+          );
+          modulesWithLessons.push({ ...mod, lessons: sortedLessons });
         }
         setModules(modulesWithLessons);
         if (modulesWithLessons.length > 0) setExpandedModules([modulesWithLessons[0].id]);
 
-        // CORREÇÃO: Usando maybeSingle() para evitar erro 406 se não estiver matriculado
-        const { data: enrData, error: enrErr } = await supabase.from("enrollments").select("id").eq("student_id", user!.id).eq("course_id", id).maybeSingle();
-        if (enrErr) throw enrErr;
-        setIsEnrolled(!!enrData);
+        const enrData = await directApiCall('enrollments', 'GET', undefined, `student_id=eq.${user!.id}&course_id=eq.${id}&select=id`);
+        setIsEnrolled(enrData && enrData.length > 0);
 
         const lessonIds = modulesWithLessons.flatMap((m) => m.lessons.map((l) => l.id));
         if (lessonIds.length) {
-          const { data: progData, error: progErr } = await supabase.from("lesson_progress").select("*").eq("student_id", user!.id).in("lesson_id", lessonIds);
-          if (progErr) throw progErr;
+          const progData = await directApiCall('lesson_progress', 'GET', undefined, `student_id=eq.${user!.id}&lesson_id=in.(${lessonIds.join(',')})&select=*`);
           setProgress(progData || []);
         }
 
-        // CORREÇÃO: Usando maybeSingle() para evitar erro 406 se não tiver certificado
-        const { data: certData, error: certErr } = await supabase.from("certificates").select("id").eq("student_id", user!.id).eq("course_id", id).maybeSingle();
-        if (certErr) throw certErr;
-        setHasCertificate(!!certData);
+        const certData = await directApiCall('certificates', 'GET', undefined, `student_id=eq.${user!.id}&course_id=eq.${id}&select=id`);
+        setHasCertificate(certData && certData.length > 0);
 
       } catch (error) {
         console.error("Erro ao carregar trilha:", error);
@@ -71,9 +115,13 @@ export default function CoursePage() {
   }, [id, user]);
 
   const handleEnroll = async () => {
-    const { error } = await supabase.from("enrollments").insert({ student_id: user!.id, course_id: id });
-    if (error) toast.error("Erro ao matricular.");
-    else { setIsEnrolled(true); toast.success("Matrícula realizada com sucesso!"); }
+    try {
+        await directApiCall('enrollments', 'POST', { student_id: user!.id, course_id: id });
+        setIsEnrolled(true); 
+        toast.success("Matrícula realizada com sucesso!");
+    } catch (err) {
+        toast.error("Erro ao matricular.");
+    }
   };
 
   const toggleModule = (moduleId: string) => {
@@ -108,9 +156,7 @@ export default function CoursePage() {
       </Link>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Main content */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Course header */}
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
             <img src={coverImg} alt={course.title} className="w-full h-52 object-cover" />
             <div className="p-6">
@@ -139,7 +185,6 @@ export default function CoursePage() {
             </div>
           </div>
 
-          {/* Modules & Lessons */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-800">Conteúdo da Trilha</h2>
@@ -208,7 +253,6 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-4">
           {!isEnrolled ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">

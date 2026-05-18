@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Calendar, Clock, ExternalLink, Users, Video } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
 import type { MentoringSession } from "@/types";
@@ -9,16 +8,60 @@ export default function MentoringPage() {
   const [sessions, setSessions] = useState<MentoringSession[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("mentoring_sessions")
-          .select("*")
-          .eq("is_published", true)
-          .order("scheduled_at", { ascending: true });
-        if (error) throw error;
+        const data = await directApiCall(
+          "mentoring_sessions", 
+          "GET", 
+          undefined, 
+          "is_published=eq.true&select=*&order=scheduled_at.asc"
+        );
         setSessions(data || []);
       } catch (error) {
         console.error(error);

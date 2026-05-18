@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, Award, Trophy, Star, ChevronRight, TrendingUp, Bell, Play } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_IMAGES, DEFAULT_COURSE_IMAGE, LEVEL_LABELS } from "@/constants";
 import { formatDate } from "@/lib/utils";
@@ -23,57 +22,92 @@ export default function DashboardPage() {
   const [rankingPos, setRankingPos] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     if (!user) return;
     async function load() {
       try {
         setLoading(true);
-        // Enrollments with courses
-        const { data: enrData, error: errEnr } = await supabase.from("enrollments").select("*, courses(*)").eq("student_id", user!.id);
-        if (errEnr) throw errEnr;
+        
+        const [enrData, certData, annData, rankData, progressData] = await Promise.all([
+          directApiCall('enrollments', 'GET', undefined, `student_id=eq.${user!.id}&select=*,courses(*)`),
+          directApiCall('certificates', 'GET', undefined, `student_id=eq.${user!.id}&select=*,courses(title)`),
+          directApiCall('announcements', 'GET', undefined, `is_published=eq.true&select=*&order=created_at.desc&limit=3`),
+          directApiCall('user_profiles', 'GET', undefined, `select=id,points&order=points.desc`),
+          directApiCall('lesson_progress', 'GET', undefined, `student_id=eq.${user!.id}&completed=eq.true&select=*`)
+        ]);
 
-        // Certificates
-        const { data: certData, error: errCert } = await supabase.from("certificates").select("*, courses(title)").eq("student_id", user!.id);
-        if (errCert) throw errCert;
-
-        // Announcements
-        const { data: annData, error: errAnn } = await supabase.from("announcements").select("*").eq("is_published", true).order("created_at", { ascending: false }).limit(3);
-        if (errAnn) throw errAnn;
-
-        // Ranking position
-        const { data: rankData, error: errRank } = await supabase.from("user_profiles").select("id, points").order("points", { ascending: false });
-        if (errRank) throw errRank;
-        const pos = rankData?.findIndex((u) => u.id === user!.id) ?? -1;
-
-        // Lesson progress
-        const { data: progressData, error: errProg } = await supabase.from("lesson_progress").select("*").eq("student_id", user!.id).eq("completed", true);
-        if (errProg) throw errProg;
+        const pos = (rankData || []).findIndex((u: any) => u.id === user!.id);
+        setRankingPos(pos >= 0 ? pos + 1 : 0);
 
         setEnrollments(enrData || []);
         setCertificates(certData || []);
         setAnnouncements(annData || []);
-        setRankingPos(pos >= 0 ? pos + 1 : 0);
 
         // Build courses with progress
         if (enrData) {
           const progressList: CourseWithProgress[] = [];
           for (const enr of enrData) {
             if (!enr.courses) continue;
-            const { data: modules, error: errMod } = await supabase.from("modules").select("id").eq("course_id", enr.course_id);
-            if (errMod) throw errMod;
+            
+            const modules = await directApiCall('modules', 'GET', undefined, `course_id=eq.${enr.course_id}&select=id`);
+            
+            let total = 0;
+            let completed = 0;
 
-            if (!modules?.length) {
-              progressList.push({ course: enr.courses as Course, totalLessons: 0, completedLessons: 0, progress: 0 });
-              continue;
+            if (modules && modules.length > 0) {
+              const moduleIds = modules.map((m: any) => m.id);
+              const lessons = await directApiCall('lessons', 'GET', undefined, `module_id=in.(${moduleIds.join(',')})&select=id`);
+              
+              total = lessons?.length || 0;
+              completed = (progressData || []).filter((p: LessonProgress) =>
+                lessons?.some((l: any) => l.id === p.lesson_id)
+              ).length;
             }
-            const moduleIds = modules.map((m) => m.id);
-            const { data: lessons, error: errLess } = await supabase.from("lessons").select("id").in("module_id", moduleIds);
-            if (errLess) throw errLess;
 
-            const total = lessons?.length || 0;
-            const completed = (progressData || []).filter((p: LessonProgress) =>
-              lessons?.some((l) => l.id === p.lesson_id)
-            ).length;
             progressList.push({
               course: enr.courses as Course,
               totalLessons: total,
@@ -81,6 +115,12 @@ export default function DashboardPage() {
               progress: total > 0 ? Math.round((completed / total) * 100) : 0,
             });
           }
+
+          // A MÁGICA: Ordenar as Trilhas em Andamento por Título (A-Z)
+          progressList.sort((a, b) =>
+            String(a.course?.title || "").trim().localeCompare(String(b.course?.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+          );
+
           setCoursesProgress(progressList);
         }
       } catch (error) {

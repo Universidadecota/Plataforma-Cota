@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, Clock, Search, SlidersHorizontal, CheckCircle } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_IMAGES, DEFAULT_COURSE_IMAGE, LEVEL_LABELS, CATEGORY_LABELS } from "@/constants";
 import { toast } from "sonner";
@@ -16,25 +15,68 @@ export default function CourseCatalogPage() {
   const [levelFilter, setLevelFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
-        const { data: coursesData, error: errCourses } = await supabase
-          .from("courses")
-          .select("*")
-          .eq("is_published", true)
-          .order("order_index");
-        if (errCourses) throw errCourses;
+        
+        // Busca os Cursos e as Matrículas do aluno
+        const [coursesData, enrData] = await Promise.all([
+          directApiCall('courses', 'GET', undefined, `is_published=eq.true&select=*`),
+          directApiCall('enrollments', 'GET', undefined, `student_id=eq.${user!.id}&select=course_id`)
+        ]);
 
-        const { data: enrData, error: errEnr } = await supabase
-          .from("enrollments")
-          .select("course_id")
-          .eq("student_id", user!.id);
-        if (errEnr) throw errEnr;
+        // ORDENAÇÃO À PROVA DE BALAS: Garante a ordem da Trilha 1 à Trilha 9
+        const sortedCourses = (coursesData || []).sort((a: any, b: any) =>
+          String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+        );
 
-        setCourses(coursesData || []);
-        setEnrolledIds((enrData || []).map((e) => e.course_id));
+        setCourses(sortedCourses);
+        setEnrolledIds((enrData || []).map((e: any) => e.course_id));
       } catch (error) {
         console.error(error);
         toast.error("Erro ao carregar o catálogo de trilhas.");
@@ -47,8 +89,7 @@ export default function CourseCatalogPage() {
 
   const handleEnroll = async (courseId: string) => {
     try {
-      const { error } = await supabase.from("enrollments").insert({ student_id: user!.id, course_id: courseId });
-      if (error) throw error;
+      await directApiCall('enrollments', 'POST', { student_id: user!.id, course_id: courseId });
       setEnrolledIds((prev) => [...prev, courseId]);
       toast.success("Matrícula realizada com sucesso!");
     } catch (error) {
@@ -96,6 +137,7 @@ export default function CourseCatalogPage() {
               <option value="beginner">Iniciante</option>
               <option value="intermediate">Intermediário</option>
               <option value="advanced">Avançado</option>
+              <option value="leadership">Líderes Comerciais</option>
             </select>
           </div>
           <select

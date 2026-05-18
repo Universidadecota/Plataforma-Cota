@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Users, BookOpen, Bell, Settings, Plus, Edit2, Trash2, Eye, EyeOff, MessageCircle, ShieldCheck } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import type { UserProfile, Course, Announcement, WhatsAppScript, Objection } from "@/types";
@@ -19,32 +18,96 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Formulário de Comunicados
+  // Formulário de Criação: Comunicados
   const [showAnnForm, setShowAnnForm] = useState(false);
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [annPriority, setAnnPriority] = useState("normal");
   const [annTargetRole, setAnnTargetRole] = useState("");
 
-  // Formulário de Trilhas (AGORA COM DESCRIÇÃO)
+  // Formulário de Edição: Comunicados
+  const [editingAnnId, setEditingAnnId] = useState<string | null>(null);
+  const [editAnnTitle, setEditAnnTitle] = useState("");
+  const [editAnnContent, setEditAnnContent] = useState("");
+  const [editAnnPriority, setEditAnnPriority] = useState("normal");
+  const [editAnnTargetRole, setEditAnnTargetRole] = useState("");
+
+  // Formulário de Criação: Trilhas
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [courseTitle, setCourseTitle] = useState("");
-  const [courseDescription, setCourseDescription] = useState(""); // Novo campo
+  const [courseDescription, setCourseDescription] = useState("");
   const [courseCategory, setCourseCategory] = useState("Fundamentos");
   const [courseLevel, setCourseLevel] = useState("beginner");
 
-  // Formulário de Scripts
+  // Formulário de Criação: Scripts
   const [showScriptForm, setShowScriptForm] = useState(false);
   const [scriptTitle, setScriptTitle] = useState("");
-  const [scriptCategory, setScriptCategory] = useState("Captação");
+  const [scriptCategory, setScriptCategory] = useState("Primeiro contato");
   const [scriptContent, setScriptContent] = useState("");
 
-  // Formulário de Objeções
+  // Formulário de Edição: Scripts
+  const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
+  const [editScriptTitle, setEditScriptTitle] = useState("");
+  const [editScriptCategory, setEditScriptCategory] = useState("");
+  const [editScriptContent, setEditScriptContent] = useState("");
+
+  // Formulário de Criação: Objeções
   const [showObjForm, setShowObjForm] = useState(false);
   const [objTitle, setObjTitle] = useState("");
-  const [objCategory, setObjCategory] = useState("Financeiro");
+  const [objCategory, setObjCategory] = useState("Contemplação");
   const [objResponse, setObjResponse] = useState("");
   const [objTips, setObjTips] = useState("");
+
+  // Formulário de Edição: Objeções
+  const [editingObjId, setEditingObjId] = useState<string | null>(null);
+  const [editObjTitle, setEditObjTitle] = useState("");
+  const [editObjCategory, setEditObjCategory] = useState("");
+  const [editObjResponse, setEditObjResponse] = useState("");
+  const [editObjTips, setEditObjTips] = useState("");
+
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
 
   useEffect(() => {
     loadAll(true);
@@ -54,18 +117,12 @@ export default function AdminDashboard() {
     try {
       if (isInitial) setLoading(true);
       
-      const [
-        { data: u },
-        { data: c },
-        { data: a },
-        { data: s },
-        { data: o }
-      ] = await Promise.all([
-        supabase.from("user_profiles").select("*").order("created_at", { ascending: false }),
-        supabase.from("courses").select("*").order("order_index"),
-        supabase.from("announcements").select("*").order("created_at", { ascending: false }),
-        supabase.from("whatsapp_scripts").select("*").order("created_at", { ascending: false }),
-        supabase.from("objections").select("*").order("created_at", { ascending: false }),
+      const [u, c, a, s, o] = await Promise.all([
+        directApiCall('user_profiles', 'GET', undefined, 'select=*&order=created_at.desc'),
+        directApiCall('courses', 'GET', undefined, 'select=*&order=title.asc'),
+        directApiCall('announcements', 'GET', undefined, 'select=*&order=created_at.desc'),
+        directApiCall('whatsapp_scripts', 'GET', undefined, 'select=*&order=created_at.desc'),
+        directApiCall('objections', 'GET', undefined, 'select=*&order=created_at.desc'),
       ]);
 
       setUsers(u || []);
@@ -89,27 +146,24 @@ export default function AdminDashboard() {
 
     try {
       setSaving(true);
-      const { data: newCourse, error: courseErr } = await supabase.from("courses").insert({
+      const newCourseArr = await directApiCall('courses', 'POST', {
         title: courseTitle,
-        description: courseDescription, // O campo novo a ser enviado
+        description: courseDescription,
         category: courseCategory,
         level: courseLevel,
         duration_hours: 1, 
         is_published: false 
-      }).select().single();
+      });
 
-      if (courseErr) throw courseErr;
+      const newCourseId = newCourseArr[0].id;
 
-      // Cria automaticamente o Módulo 1 ao criar a trilha
-      const { error: modErr } = await supabase.from("modules").insert({
-        course_id: newCourse.id,
-        title: "Módulo 1 - Introdução",
+      await directApiCall('modules', 'POST', {
+        course_id: newCourseId,
+        title: "M01 - Introdução",
         order_index: 1
       });
 
-      if (modErr) throw modErr;
-
-      toast.success("Trilha criada com sucesso!");
+      toast.success("Trilha criada com sucesso! 🚀");
       setShowCourseForm(false);
       setCourseTitle("");
       setCourseDescription("");
@@ -118,46 +172,34 @@ export default function AdminDashboard() {
       console.error(error);
       toast.error("Erro ao criar a trilha.");
     } finally {
-      setSaving(false); // Força o botão a voltar ao normal
+      setSaving(false);
     }
   };
 
   const deleteCourse = async (id: string) => {
     if (!confirm("⚠️ ATENÇÃO: Excluir esta trilha apagará TODOS os módulos e aulas. Deseja excluir?")) return;
     try {
-      const { error } = await supabase.from("courses").delete().eq("id", id);
-      if (error) throw error;
-      toast.success("Trilha excluída.");
+      await directApiCall('courses', 'DELETE', undefined, `id=eq.${id}`);
+      toast.success("Trilha excluída. 🚀");
       await loadAll(false);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao excluir a trilha.");
-    }
+    } catch (error) { toast.error("Erro ao excluir a trilha."); }
   };
 
   const toggleCoursePublished = async (course: Course) => {
     try {
-      const { error } = await supabase.from("courses").update({ is_published: !course.is_published }).eq("id", course.id);
-      if (error) throw error;
+      await directApiCall('courses', 'PATCH', { is_published: !course.is_published }, `id=eq.${course.id}`);
       setCourses((prev) => prev.map((c) => c.id === course.id ? { ...c, is_published: !c.is_published } : c));
-      toast.success(course.is_published ? "Trilha ocultada." : "Trilha publicada!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao atualizar estado.");
-    }
+      toast.success(course.is_published ? "Trilha ocultada. 🚀" : "Trilha publicada! 🚀");
+    } catch (error) { toast.error("Erro ao atualizar estado."); }
   };
 
   // --- Funções de Utilizadores ---
   const updateUserRole = async (userId: string, role: string) => {
     try {
-      const { error } = await supabase.from("user_profiles").update({ role }).eq("id", userId);
-      if (error) throw error;
+      await directApiCall('user_profiles', 'PATCH', { role }, `id=eq.${userId}`);
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: role as UserProfile["role"] } : u));
-      toast.success("Perfil atualizado!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao atualizar perfil.");
-    }
+      toast.success("Perfil atualizado! 🚀");
+    } catch (error) { toast.error("Erro ao atualizar perfil."); }
   };
 
   // --- Funções de Comunicados ---
@@ -166,37 +208,43 @@ export default function AdminDashboard() {
     if (!annTitle || !annContent) { toast.error("Preenche título e conteúdo."); return; }
     try {
       setSaving(true);
-      const { error } = await supabase.from("announcements").insert({
+      await directApiCall('announcements', 'POST', {
         title: annTitle,
         content: annContent,
         priority: annPriority,
         target_role: annTargetRole || null,
         is_published: true,
       });
-      if (error) throw error;
-      toast.success("Comunicado publicado!");
+      toast.success("Comunicado publicado! 🚀");
       setShowAnnForm(false);
       setAnnTitle(""); setAnnContent(""); setAnnPriority("normal"); setAnnTargetRole("");
       await loadAll(false);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao criar comunicado.");
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) { toast.error("Erro ao criar comunicado."); } finally { setSaving(false); }
+  };
+
+  const updateAnnouncement = async (id: string) => {
+    if (!editAnnTitle || !editAnnContent) { toast.error("Preencha título e conteúdo."); return; }
+    try {
+      setSaving(true);
+      await directApiCall('announcements', 'PATCH', {
+        title: editAnnTitle,
+        content: editAnnContent,
+        priority: editAnnPriority,
+        target_role: editAnnTargetRole || null
+      }, `id=eq.${id}`);
+      toast.success("Comunicado atualizado! 🚀");
+      setEditingAnnId(null);
+      await loadAll(false);
+    } catch (error) { toast.error("Erro ao atualizar comunicado."); } finally { setSaving(false); }
   };
 
   const deleteAnnouncement = async (id: string) => {
     if (!confirm("Excluir este comunicado?")) return;
     try {
-      const { error } = await supabase.from("announcements").delete().eq("id", id);
-      if (error) throw error;
+      await directApiCall('announcements', 'DELETE', undefined, `id=eq.${id}`);
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
-      toast.success("Comunicado removido.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao remover comunicado.");
-    }
+      toast.success("Comunicado removido. 🚀");
+    } catch (error) { toast.error("Erro ao remover comunicado."); }
   };
 
   // --- Funções de Scripts ---
@@ -205,35 +253,40 @@ export default function AdminDashboard() {
     if (!scriptTitle || !scriptContent) { toast.error("Preenche título e conteúdo."); return; }
     try {
       setSaving(true);
-      const { error } = await supabase.from("whatsapp_scripts").insert({
+      await directApiCall('whatsapp_scripts', 'POST', {
         title: scriptTitle,
         category: scriptCategory,
         content: scriptContent
       });
-      if (error) throw error;
-      toast.success("Script criado com sucesso!");
+      toast.success("Script criado com sucesso! 🚀");
       setShowScriptForm(false);
       setScriptTitle(""); setScriptContent("");
       await loadAll(false);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao criar script.");
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) { toast.error("Erro ao criar script."); } finally { setSaving(false); }
+  };
+
+  const updateScript = async (id: string) => {
+    if (!editScriptTitle || !editScriptContent) { toast.error("Preencha título e conteúdo."); return; }
+    try {
+      setSaving(true);
+      await directApiCall('whatsapp_scripts', 'PATCH', {
+        title: editScriptTitle,
+        category: editScriptCategory,
+        content: editScriptContent
+      }, `id=eq.${id}`);
+      toast.success("Script atualizado! 🚀");
+      setEditingScriptId(null);
+      await loadAll(false);
+    } catch (error) { toast.error("Erro ao atualizar script."); } finally { setSaving(false); }
   };
 
   const deleteScript = async (id: string) => {
     if (!confirm("Desejas eliminar este script?")) return;
     try {
-      const { error } = await supabase.from("whatsapp_scripts").delete().eq("id", id);
-      if (error) throw error;
+      await directApiCall('whatsapp_scripts', 'DELETE', undefined, `id=eq.${id}`);
       setScripts((prev) => prev.filter((s) => s.id !== id));
-      toast.success("Script removido.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao remover script.");
-    }
+      toast.success("Script removido. 🚀");
+    } catch (error) { toast.error("Erro ao remover script."); }
   };
 
   // --- Funções de Objeções ---
@@ -242,36 +295,42 @@ export default function AdminDashboard() {
     if (!objTitle || !objResponse) { toast.error("Preenche a objeção e a resposta."); return; }
     try {
       setSaving(true);
-      const { error } = await supabase.from("objections").insert({
+      await directApiCall('objections', 'POST', {
         objection: objTitle,
         category: objCategory,
         response: objResponse,
         tips: objTips || null
       });
-      if (error) throw error;
-      toast.success("Objeção registada com sucesso!");
+      toast.success("Objeção registada com sucesso! 🚀");
       setShowObjForm(false);
       setObjTitle(""); setObjResponse(""); setObjTips("");
       await loadAll(false);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao criar objeção.");
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) { toast.error("Erro ao criar objeção."); } finally { setSaving(false); }
+  };
+
+  const updateObjection = async (id: string) => {
+    if (!editObjTitle || !editObjResponse) { toast.error("Preencha a objeção e a resposta."); return; }
+    try {
+      setSaving(true);
+      await directApiCall('objections', 'PATCH', {
+        objection: editObjTitle,
+        category: editObjCategory,
+        response: editObjResponse,
+        tips: editObjTips || null
+      }, `id=eq.${id}`);
+      toast.success("Objeção atualizada! 🚀");
+      setEditingObjId(null);
+      await loadAll(false);
+    } catch (error) { toast.error("Erro ao atualizar objeção."); } finally { setSaving(false); }
   };
 
   const deleteObjection = async (id: string) => {
     if (!confirm("Desejas eliminar esta objeção?")) return;
     try {
-      const { error } = await supabase.from("objections").delete().eq("id", id);
-      if (error) throw error;
+      await directApiCall('objections', 'DELETE', undefined, `id=eq.${id}`);
       setObjections((prev) => prev.filter((o) => o.id !== id));
-      toast.success("Objeção removida.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao remover objeção.");
-    }
+      toast.success("Objeção removida. 🚀");
+    } catch (error) { toast.error("Erro ao remover objeção."); }
   };
 
   const tabs = [
@@ -402,15 +461,12 @@ export default function AdminDashboard() {
                         placeholder="Ex: Como Vender Consórcio de Imóveis"
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green" />
                     </div>
-                    
-                    {/* NOVO CAMPO: DESCRIÇÃO */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Descrição (Resumo para o aluno)</label>
                       <textarea value={courseDescription} onChange={(e) => setCourseDescription(e.target.value)}
                         placeholder="Ex: Base essencial para entender consórcio, carta de crédito, assembleias..." rows={3}
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green resize-none" />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Categoria</label>
@@ -552,22 +608,60 @@ export default function AdminDashboard() {
                 </div>
                 <div className="divide-y divide-gray-50">
                   {announcements.map((ann) => (
-                    <div key={ann.id} className="flex items-start gap-4 px-5 py-4 hover:bg-gray-50">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-gray-800 text-sm">{ann.title}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ann.priority === "urgent" ? "bg-red-100 text-red-700" : ann.priority === "high" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
-                            {ann.priority}
-                          </span>
+                    editingAnnId === ann.id ? (
+                      <div key={ann.id} className="p-5 bg-gray-50">
+                        <div className="space-y-3">
+                          <input type="text" value={editAnnTitle} onChange={(e) => setEditAnnTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                          <textarea value={editAnnContent} onChange={(e) => setEditAnnContent(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green resize-none" rows={3} />
+                          <div className="grid grid-cols-2 gap-3">
+                            <select value={editAnnPriority} onChange={(e) => setEditAnnPriority(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green">
+                              <option value="low">Baixa</option>
+                              <option value="normal">Normal</option>
+                              <option value="high">Alta</option>
+                              <option value="urgent">Urgente</option>
+                            </select>
+                            <select value={editAnnTargetRole} onChange={(e) => setEditAnnTargetRole(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green">
+                              <option value="">Todos</option>
+                              <option value="student">Alunos</option>
+                              <option value="instructor">Instrutores</option>
+                              <option value="manager">Gestores</option>
+                              <option value="admin">Admins</option>
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => updateAnnouncement(ann.id)} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-cota-green-light">Salvar Alterações</button>
+                            <button onClick={() => setEditingAnnId(null)} className="text-gray-500 px-3 py-2 text-sm hover:text-gray-700">Cancelar</button>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-400 line-clamp-1">{ann.content}</p>
-                        <p className="text-xs text-gray-300 mt-1">{formatDate(ann.created_at)}</p>
                       </div>
-                      <button onClick={() => deleteAnnouncement(ann.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    ) : (
+                      <div key={ann.id} className="flex items-start gap-4 px-5 py-4 hover:bg-gray-50">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-gray-800 text-sm">{ann.title}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ann.priority === "urgent" ? "bg-red-100 text-red-700" : ann.priority === "high" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                              {ann.priority}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 line-clamp-1">{ann.content}</p>
+                          <p className="text-xs text-gray-300 mt-1">{formatDate(ann.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => {
+                            setEditingAnnId(ann.id);
+                            setEditAnnTitle(ann.title);
+                            setEditAnnContent(ann.content);
+                            setEditAnnPriority(ann.priority);
+                            setEditAnnTargetRole(ann.target_role || "");
+                          }} className="p-1.5 rounded-lg hover:bg-cota-green/10 text-gray-400 hover:text-cota-green transition-colors">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => deleteAnnouncement(ann.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )
                   ))}
                 </div>
               </div>
@@ -599,6 +693,8 @@ export default function AdminDashboard() {
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Categoria</label>
                         <select value={scriptCategory} onChange={(e) => setScriptCategory(e.target.value)}
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30">
+                          <option value="Primeiro contato">Primeiro contato</option>
+                          <option value="Diagnóstico">Diagnóstico</option>
                           <option value="Captação">Captação</option>
                           <option value="Follow-up">Follow-up</option>
                           <option value="Reativação">Reativação</option>
@@ -635,23 +731,58 @@ export default function AdminDashboard() {
                 </div>
                 <div className="divide-y divide-gray-50">
                   {scripts.map((script) => (
-                    <div key={script.id} className="p-5 hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-semibold text-gray-800 text-sm">{script.title}</h3>
-                          <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                            {script.category}
-                          </span>
+                    editingScriptId === script.id ? (
+                      <div key={script.id} className="p-5 bg-gray-50">
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <input type="text" value={editScriptTitle} onChange={(e) => setEditScriptTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                            <select value={editScriptCategory} onChange={(e) => setEditScriptCategory(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green">
+                              <option value="Primeiro contato">Primeiro contato</option>
+                              <option value="Diagnóstico">Diagnóstico</option>
+                              <option value="Captação">Captação</option>
+                              <option value="Follow-up">Follow-up</option>
+                              <option value="Reativação">Reativação</option>
+                              <option value="Proposta">Proposta</option>
+                              <option value="Pós-venda">Pós-venda</option>
+                              <option value="Relacionamento">Relacionamento</option>
+                              <option value="Indicação">Indicação</option>
+                            </select>
+                          </div>
+                          <textarea value={editScriptContent} onChange={(e) => setEditScriptContent(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:border-cota-green resize-none" rows={5} />
+                          <div className="flex gap-2">
+                            <button onClick={() => updateScript(script.id)} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-cota-green-light">Salvar Alterações</button>
+                            <button onClick={() => setEditingScriptId(null)} className="text-gray-500 px-3 py-2 text-sm hover:text-gray-700">Cancelar</button>
+                          </div>
                         </div>
-                        <button onClick={() => deleteScript(script.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
-                      <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-100 font-mono text-xs text-gray-600 whitespace-pre-wrap">
-                        {script.content}
+                    ) : (
+                      <div key={script.id} className="p-5 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h3 className="font-semibold text-gray-800 text-sm">{script.title}</h3>
+                            <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                              {script.category}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => {
+                              setEditingScriptId(script.id);
+                              setEditScriptTitle(script.title);
+                              setEditScriptCategory(script.category);
+                              setEditScriptContent(script.content);
+                            }} className="p-1.5 rounded-lg hover:bg-cota-green/10 text-gray-400 hover:text-cota-green transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => deleteScript(script.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-100 font-mono text-xs text-gray-600 whitespace-pre-wrap">
+                          {script.content}
+                        </div>
                       </div>
-                    </div>
+                    )
                   ))}
                 </div>
               </div>
@@ -683,6 +814,8 @@ export default function AdminDashboard() {
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Categoria</label>
                         <select value={objCategory} onChange={(e) => setObjCategory(e.target.value)}
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30">
+                          <option value="Contemplação">Contemplação</option>
+                          <option value="Prazo">Prazo</option>
                           <option value="Financeiro">Financeiro</option>
                           <option value="Comparação">Comparação</option>
                           <option value="Funcionamento">Funcionamento</option>
@@ -724,28 +857,64 @@ export default function AdminDashboard() {
                 </div>
                 <div className="divide-y divide-gray-50">
                   {objections.map((obj) => (
-                    <div key={obj.id} className="p-5 hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-semibold text-gray-800 text-sm">"{obj.objection}"</p>
-                          <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                            {obj.category}
-                          </span>
+                    editingObjId === obj.id ? (
+                      <div key={obj.id} className="p-5 bg-gray-50">
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <input type="text" value={editObjTitle} onChange={(e) => setEditObjTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                            <select value={editObjCategory} onChange={(e) => setEditObjCategory(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green">
+                              <option value="Contemplação">Contemplação</option>
+                              <option value="Prazo">Prazo</option>
+                              <option value="Financeiro">Financeiro</option>
+                              <option value="Comparação">Comparação</option>
+                              <option value="Funcionamento">Funcionamento</option>
+                              <option value="Experiência negativa">Experiência negativa</option>
+                              <option value="Procrastinação">Procrastinação</option>
+                              <option value="Custo">Custo</option>
+                            </select>
+                          </div>
+                          <textarea value={editObjResponse} onChange={(e) => setEditObjResponse(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green resize-none" rows={3} />
+                          <input type="text" placeholder="Dica Extra" value={editObjTips} onChange={(e) => setEditObjTips(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                          <div className="flex gap-2">
+                            <button onClick={() => updateObjection(obj.id)} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-cota-green-light">Salvar Alterações</button>
+                            <button onClick={() => setEditingObjId(null)} className="text-gray-500 px-3 py-2 text-sm hover:text-gray-700">Cancelar</button>
+                          </div>
                         </div>
-                        <button onClick={() => deleteObjection(obj.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
-                      <div className="bg-cota-green/5 border border-cota-green/20 rounded-lg p-4 text-sm text-gray-700 italic">
-                        {obj.response}
+                    ) : (
+                      <div key={obj.id} className="p-5 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-semibold text-gray-800 text-sm">"{obj.objection}"</p>
+                            <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                              {obj.category}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => {
+                              setEditingObjId(obj.id);
+                              setEditObjTitle(obj.objection);
+                              setEditObjCategory(obj.category);
+                              setEditObjResponse(obj.response);
+                              setEditObjTips(obj.tips || "");
+                            }} className="p-1.5 rounded-lg hover:bg-cota-green/10 text-gray-400 hover:text-cota-green transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => deleteObjection(obj.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-cota-green/5 border border-cota-green/20 rounded-lg p-4 text-sm text-gray-700 italic">
+                          {obj.response}
+                        </div>
+                        {obj.tips && (
+                          <p className="mt-2 text-xs text-cota-gold-dark flex items-center gap-1">
+                            <span className="font-bold">Dica:</span> {obj.tips}
+                          </p>
+                        )}
                       </div>
-                      {obj.tips && (
-                        <p className="mt-2 text-xs text-cota-gold-dark flex items-center gap-1">
-                          <span className="font-bold">Dica:</span> {obj.tips}
-                        </p>
-                      )}
-                    </div>
+                    )
                   ))}
                 </div>
               </div>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Users, BookOpen, Award, TrendingUp, AlertTriangle, Download, DollarSign, Target, BarChart3, Briefcase } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 import type { UserProfile, Lead } from "@/types";
@@ -36,31 +35,73 @@ export default function ManagerDashboard() {
   const [globalSalesValue, setGlobalSalesValue] = useState(0);
   const [globalPipelineValue, setGlobalPipelineValue] = useState(0);
 
+  // =====================================================================
+  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // =====================================================================
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supabaseAnonKey;
+
+    try {
+      const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      if (storageKey) {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (sessionData?.access_token) token = sessionData.access_token;
+      }
+    } catch (err) {}
+
+    const endpoint = `${supabaseUrl}/rest/v1/${tableName}${query ? `?${query}` : ''}`;
+    
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Erro ${response.status}: ${errText}`);
+    }
+    
+    if (method === 'GET' || method === 'POST') {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+    return true;
+  };
+  // =====================================================================
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
         
-        // CORREÇÃO AQUI: Removido o filtro .in("role", ["student", "instructor"])
-        // Agora o painel busca TODOS os usuários, incluindo os Admins e Gestores
-        const { data: profiles, error: errProf } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .order("points", { ascending: false });
+        const profiles = await directApiCall(
+          "user_profiles", 
+          "GET", 
+          undefined, 
+          "select=*&order=points.desc"
+        );
           
-        if (errProf) throw errProf;
         if (!profiles) return;
 
-        const { data: allLeads, error: errLeads } = await supabase.from("leads").select("*");
-        if (errLeads) throw errLeads;
+        const allLeads = await directApiCall("leads", "GET", undefined, "select=*");
 
         const stats: StudentStats[] = [];
         
         for (const p of profiles) {
-          const { data: enrs } = await supabase.from("enrollments").select("id").eq("student_id", p.id);
-          const { data: certs } = await supabase.from("certificates").select("id").eq("student_id", p.id);
+          const enrs = await directApiCall("enrollments", "GET", undefined, `student_id=eq.${p.id}&select=id`);
+          const certs = await directApiCall("certificates", "GET", undefined, `student_id=eq.${p.id}&select=id`);
 
-          const userLeads = (allLeads as Lead[])?.filter((l) => l.assigned_to === p.id) || [];
+          const userLeads = (allLeads as Lead[] || []).filter((l) => l.assigned_to === p.id);
           const wonLeads = userLeads.filter((l) => l.status === "ganho");
           const activeLeads = userLeads.filter((l) => l.status !== "ganho" && l.status !== "perdido");
 

@@ -51,20 +51,17 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const { user } = useAuthStore();
   const { signOut } = useAuth();
 
-  // Função BLINDADA para forçar a saída do sistema
-  const handleSignOut = async () => {
-    try {
-      // Tenta sair educadamente do Supabase
-      await signOut();
-    } catch (error) {
-      console.warn("Erro silencioso ao sair:", error);
-    } finally {
-      // Independentemente do que aconteça, limpa a memória do navegador à força
-      localStorage.clear();
-      sessionStorage.clear();
-      // Recarrega a página direcionando direto para o login
-      window.location.href = "/login";
-    }
+  // Função VERDADEIRAMENTE blindada (Sem await)
+  const handleSignOut = () => {
+    // 1. Limpa a memória local IMEDIATAMENTE antes de falar com o servidor
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // 2. Manda o aviso para o Supabase, mas NÃO espera por ele (sem await)
+    signOut().catch(() => console.warn("Sessão ignorada."));
+
+    // 3. Atira o utilizador para a tela de login na mesma hora
+    window.location.href = "/login";
   };
 
   const visibleItems = navItems.filter(
