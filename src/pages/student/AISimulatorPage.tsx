@@ -161,36 +161,41 @@ export default function AISimulatorPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 min-w-0 overflow-hidden">
-        {/* Painel Lateral - Escolha de Persona (Atualizado com UI de Carrossel) */}
-        <div className="w-full lg:w-80 flex flex-row lg:flex-col gap-3 lg:gap-4 flex-shrink-0 overflow-x-auto lg:overflow-hidden lg:hover:overflow-y-auto pb-3 lg:pb-0 custom-scrollbar snap-x snap-mandatory">
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 w-72 lg:w-full flex-shrink-0 snap-start">
+        {/* Painel Lateral - Escolha de Persona */}
+        <div className="w-full lg:w-80 flex flex-col gap-3 lg:gap-4 flex-shrink-0 lg:min-h-0">
+          
+          {/* Caixa de instrução (Fica fixa em cima no mobile, fora do carrossel) */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 w-full flex-shrink-0">
             <p className="text-sm text-indigo-800 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <span>Escolha um perfil e treine a sua abordagem como se estivesse no WhatsApp.</span>
             </p>
           </div>
 
-          {PERSONAS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setActivePersona(p)}
-              className={`text-left p-4 rounded-xl border transition-all w-64 lg:w-full flex-shrink-0 snap-start ${
-                activePersona.id === p.id
-                  ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
-                  : "bg-white border-gray-200 hover:border-cota-green/50"
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2 min-w-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                  activePersona.id === p.id ? "bg-cota-green text-white" : "bg-gray-100 text-gray-600"
-                }`}>
-                  {p.name.charAt(0)}
+          {/* Carrossel de Clientes (Rola na horizontal no mobile e na vertical no PC) */}
+          <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 overflow-x-auto lg:overflow-hidden lg:hover:overflow-y-auto pb-3 lg:pb-0 custom-scrollbar snap-x snap-mandatory lg:flex-1 lg:min-h-0">
+            {PERSONAS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setActivePersona(p)}
+                className={`text-left p-4 rounded-xl border transition-all w-64 lg:w-full flex-shrink-0 snap-start ${
+                  activePersona.id === p.id
+                    ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
+                    : "bg-white border-gray-200 hover:border-cota-green/50"
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-2 min-w-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                    activePersona.id === p.id ? "bg-cota-green text-white" : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {p.name.charAt(0)}
+                  </div>
+                  <h3 className="font-bold text-gray-800 text-sm leading-snug truncate">{p.name}</h3>
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm leading-snug truncate">{p.name}</h3>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{p.description}</p>
-            </button>
-          ))}
+                <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{p.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Janela do Chat */}
