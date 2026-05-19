@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Sparkles, AlertCircle, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Persona = { id: string; name: string; description: string; greeting: string };
@@ -78,32 +77,6 @@ export default function AISimulatorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // =======================================================================
-  // 🔍 DIAGNÓSTICO: DESCOBRINDO OS MODELOS LIBERADOS PARA A SUA CHAVE
-  // =======================================================================
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (apiKey) {
-      fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.models) {
-            const validModels = data.models
-              .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-              .map((m: any) => m.name.replace('models/', ''));
-            
-            console.log("✅ DIAGNÓSTICO DA IA CONCLUÍDO!");
-            console.log("Copie UM destes nomes abaixo e coloque na linha 83 do código:");
-            console.log(validModels);
-          } else {
-            console.error("A API respondeu, mas não listou modelos. Verifique se o projeto no Google Cloud tem a API ativada.", data);
-          }
-        })
-        .catch(err => console.error("Erro ao rodar diagnóstico:", err));
-    }
-  }, []);
-  // =======================================================================
-
   useEffect(() => {
     setMessages([{ id: Date.now().toString(), role: "assistant", content: activePersona.greeting }]);
   }, [activePersona]);
@@ -119,40 +92,52 @@ export default function AISimulatorPage() {
     const userText = input.trim();
     const userMessage: Message = { id: Date.now().toString(), role: "user", content: userText };
     
+    // Pega o histórico atual antes de adicionar a nova mensagem para enviar como contexto
+    const currentHistory = [...messages]; 
+    
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave da API não encontrada");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      let token = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // 👇 SE DER ERRO 404 DE NOVO, TROQUE O NOME ABAIXO POR UM DOS QUE APARECERAM NO CONSOLE!
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      // Pega o token do usuário logado (segurança para a Edge Function)
+      try {
+        const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+        if (storageKey) {
+          const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          if (sessionData?.access_token) token = sessionData.access_token;
+        }
+      } catch (err) {}
 
-      const prompt = `
-        Você é um cliente interessado (ou com dúvidas) em comprar um consórcio.
-        Seu nome e seu perfil psicológico: ${activePersona.name} - ${activePersona.description}
-        
-        Regras muito importantes:
-        1. Aja EXATAMENTE como este cliente. Incorpore a personalidade descrita.
-        2. Seja natural, use linguagem coloquial do dia a dia, como se estivesse mandando mensagem no WhatsApp.
-        3. Suas respostas devem ser curtas (no máximo 3 frases).
-        4. NUNCA diga que você é uma Inteligência Artificial ou um assistente virtual.
-        5. O vendedor acabou de te mandar esta mensagem: "${userText}". Responda a ele agora:
-      `;
+      // Chama a Edge Function no Supabase
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // Passa a autenticação do usuário
+        },
+        body: JSON.stringify({
+          persona: activePersona,
+          userText: userText,
+          history: currentHistory // Envia o histórico para a IA ter contexto da conversa
+        })
+      });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const aiText = response.text();
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Erro na Edge Function: ${response.status} - ${errText}`);
+      }
 
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: aiText }]);
+      const data = await response.json();
+
+      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: data.reply }]);
       
     } catch (error) {
       console.error("DETALHES DO ERRO DA IA:", error);
-      toast.error("Erro ao conectar com a IA. Olhe o console F12.");
+      toast.error("Erro ao conectar com o simulador.");
       setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "⚠️ (Sistema: Conexão com o simulador falhou.)" }]);
     } finally {
       setIsLoading(false);
