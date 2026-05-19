@@ -35,6 +35,28 @@ function mapUser(user: User, profile: Record<string, unknown> | null): AuthUser 
   };
 }
 
+function clearSupabaseStorage() {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("sb-")) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.warn("Não foi possível limpar o localStorage do Supabase:", error);
+  }
+
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith("sb-")) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.warn("Não foi possível limpar o sessionStorage do Supabase:", error);
+  }
+}
+
 export function useAuth() {
   const { user, loading, login, logout, setLoading } = useAuthStore();
 
@@ -53,6 +75,7 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
       if (event === "SIGNED_IN" && session?.user) {
         const profile = await fetchProfile(session.user.id);
         login(mapUser(session.user, profile));
@@ -123,8 +146,19 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    logout();
+    try {
+      setLoading(true);
+
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (error) {
+      console.warn("Erro no signOut do Supabase. Limpando sessão local mesmo assim:", error);
+    } finally {
+      logout();
+      clearSupabaseStorage();
+      setLoading(false);
+
+      window.location.replace("/login");
+    }
   };
 
   return { user, loading, sendOtp, verifyOtpAndRegister, signIn, signOut };
