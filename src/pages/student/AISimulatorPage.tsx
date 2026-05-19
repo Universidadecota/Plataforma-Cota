@@ -92,7 +92,6 @@ export default function AISimulatorPage() {
     const userText = input.trim();
     const userMessage: Message = { id: Date.now().toString(), role: "user", content: userText };
     
-    // Pega o histórico atual antes de adicionar a nova mensagem para enviar como contexto
     const currentHistory = [...messages]; 
     
     setMessages((prev) => [...prev, userMessage]);
@@ -103,7 +102,6 @@ export default function AISimulatorPage() {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       let token = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      // Pega o token do usuário logado (segurança para a Edge Function)
       try {
         const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
         if (storageKey) {
@@ -112,17 +110,16 @@ export default function AISimulatorPage() {
         }
       } catch (err) {}
 
-      // Chama a Edge Function no Supabase
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Passa a autenticação do usuário
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           persona: activePersona,
           userText: userText,
-          history: currentHistory // Envia o histórico para a IA ter contexto da conversa
+          history: currentHistory
         })
       });
 
@@ -164,12 +161,12 @@ export default function AISimulatorPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 min-w-0 overflow-hidden">
-        {/* Painel Lateral - Escolha de Persona */}
-        <div className="w-full max-w-full lg:w-80 flex flex-row lg:flex-col gap-4 flex-shrink-0 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto pb-2 lg:pb-0 lg:pr-2 custom-scrollbar min-w-0">
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-2 w-[calc(100vw-2rem)] max-w-[320px] lg:w-full lg:max-w-none flex-shrink-0 min-w-0">
+        {/* Painel Lateral - Escolha de Persona (Atualizado com UI de Carrossel) */}
+        <div className="w-full lg:w-80 flex flex-row lg:flex-col gap-3 lg:gap-4 flex-shrink-0 overflow-x-auto lg:overflow-hidden lg:hover:overflow-y-auto pb-3 lg:pb-0 custom-scrollbar snap-x snap-mandatory">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 w-72 lg:w-full flex-shrink-0 snap-start">
             <p className="text-sm text-indigo-800 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <span>Escolha um perfil de cliente abaixo e treine a sua abordagem como se estivesse no WhatsApp.</span>
+              <span>Escolha um perfil e treine a sua abordagem como se estivesse no WhatsApp.</span>
             </p>
           </div>
 
@@ -177,39 +174,37 @@ export default function AISimulatorPage() {
             <button
               key={p.id}
               onClick={() => setActivePersona(p)}
-              className={`text-left p-4 rounded-xl border transition-all w-[calc(100vw-2rem)] max-w-[320px] lg:w-full lg:max-w-none flex-shrink-0 min-w-0 ${
+              className={`text-left p-4 rounded-xl border transition-all w-64 lg:w-full flex-shrink-0 snap-start ${
                 activePersona.id === p.id
                   ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
                   : "bg-white border-gray-200 hover:border-cota-green/50"
               }`}
             >
               <div className="flex items-center gap-3 mb-2 min-w-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
                   activePersona.id === p.id ? "bg-cota-green text-white" : "bg-gray-100 text-gray-600"
                 }`}>
                   {p.name.charAt(0)}
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm leading-snug break-words min-w-0">{p.name}</h3>
+                <h3 className="font-bold text-gray-800 text-sm leading-snug truncate">{p.name}</h3>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed break-words min-w-0">{p.description}</p>
+              <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{p.description}</p>
             </button>
           ))}
         </div>
 
         {/* Janela do Chat */}
         <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
-          {/* Header do Chat */}
           <div className="px-4 md:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between gap-3 min-w-0">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="font-bold text-gray-800 text-sm truncate">Simulando conversa com: {activePersona.name}</span>
+              <span className="font-bold text-gray-800 text-sm truncate">Simulando: {activePersona.name}</span>
             </div>
             <button onClick={resetChat} className="text-gray-400 hover:text-cota-green flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-cota-green/10 transition-colors flex-shrink-0">
               <RefreshCcw className="w-3.5 h-3.5" /> Reiniciar
             </button>
           </div>
 
-          {/* Área de Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-[url('https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png')] bg-opacity-5">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -239,7 +234,6 @@ export default function AISimulatorPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-4 bg-white border-t border-gray-100">
             <form onSubmit={handleSendMessage} className="flex gap-3 min-w-0">
               <input

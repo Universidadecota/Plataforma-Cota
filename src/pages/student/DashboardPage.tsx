@@ -22,9 +22,6 @@ export default function DashboardPage() {
   const [rankingPos, setRankingPos] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  // =====================================================================
-  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
-  // =====================================================================
   const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -64,7 +61,6 @@ export default function DashboardPage() {
     }
     return true;
   };
-  // =====================================================================
 
   useEffect(() => {
     if (!user) return;
@@ -87,7 +83,6 @@ export default function DashboardPage() {
         setCertificates(certData || []);
         setAnnouncements(annData || []);
 
-        // Build courses with progress
         if (enrData) {
           const progressList: CourseWithProgress[] = [];
           for (const enr of enrData) {
@@ -116,7 +111,6 @@ export default function DashboardPage() {
             });
           }
 
-          // A MÁGICA: Ordenar as Trilhas em Andamento por Título (A-Z)
           progressList.sort((a, b) =>
             String(a.course?.title || "").trim().localeCompare(String(b.course?.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
           );
@@ -155,7 +149,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="w-full min-w-0 overflow-hidden">
+    // Adicionado pb-6 e garantido que max-w-full previne estouro lateral
+    <div className="w-full max-w-full overflow-x-hidden pb-6 min-w-0">
       {/* Welcome header */}
       <div className="mb-6 min-w-0">
         <h1 className="text-xl sm:text-2xl font-bold text-cota-green break-words">
@@ -222,11 +217,12 @@ export default function DashboardPage() {
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 min-w-0">
-                      <p className="font-semibold text-gray-800 text-sm leading-tight group-hover:text-cota-green transition-colors truncate">
+                    {/* Atualizado para flex-col no mobile, mostrando o badge sem estourar */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 sm:gap-2 mb-1 min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm leading-tight group-hover:text-cota-green transition-colors line-clamp-2">
                         {course.title}
                       </p>
-                      <span className={`badge-level-${course.level} flex-shrink-0 hidden sm:inline-flex`}>
+                      <span className={`badge-level-${course.level} self-start flex-shrink-0 text-[10px]`}>
                         {LEVEL_LABELS[course.level]}
                       </span>
                     </div>
