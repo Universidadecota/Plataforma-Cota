@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { 
   ChevronLeft, Plus, Trash2, BookOpen, Video, FileText, 
-  ChevronDown, ChevronUp, CheckCircle2, HelpCircle, Edit2, X, Settings
+  ChevronDown, ChevronUp, CheckCircle2, Edit2, X, Trophy, Clock, ListPlus
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Course, Module, Lesson, Material, Quiz, QuizQuestion, QuizOption } from "@/types";
@@ -22,57 +22,59 @@ export default function CourseEditorPage() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const isMounted = useRef(true);
 
   // States: Editar Trilha
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
   const [editCourseTitle, setEditCourseTitle] = useState("");
   const [editCourseDescription, setEditCourseDescription] = useState("");
-  const [editCourseCategory, setEditCourseCategory] = useState("Fundamentos");
-  const [editCourseLevel, setEditCourseLevel] = useState("beginner");
 
-  // States: Módulos
-  const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null);
+  const [expandedModules, setExpandedModules] = useState<string[]>([]);
+
+  // Formulários de Criação
   const [showModuleForm, setShowModuleForm] = useState(false);
-  const [newModuleTitle, setNewModuleTitle] = useState("");
+  const [moduleTitle, setModuleTitle] = useState("");
   
-  // States: Editar Módulos
-  const [editingModId, setEditingModId] = useState<string | null>(null);
-  const [editModTitle, setEditModTitle] = useState("");
-
-  // States: Criar Aulas
-  const [activeLessonModuleId, setActiveLessonModuleId] = useState<string | null>(null);
+  const [showLessonForm, setShowLessonForm] = useState<string | null>(null);
   const [lessonTitle, setLessonTitle] = useState("");
-  const [lessonVideo, setLessonVideo] = useState("");
+  const [lessonVideoUrl, setLessonVideoUrl] = useState("");
+  const [lessonDuration, setLessonDuration] = useState(10);
   const [lessonContent, setLessonContent] = useState("");
-  const [lessonDuration, setLessonDuration] = useState("");
 
-  // States: Editar Aulas
+  const [showMaterialForm, setShowMaterialForm] = useState<string | null>(null);
+  const [materialTitle, setMaterialTitle] = useState("");
+  const [materialFileUrl, setMaterialFileUrl] = useState("");
+  const [materialFileSize, setMaterialFileSize] = useState("");
+
+  // States: Editar Módulo
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
+  const [editModuleTitle, setEditModuleTitle] = useState("");
+
+  // States: Editar Aula
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [editLessonTitle, setEditLessonTitle] = useState("");
-  const [editLessonVideo, setEditLessonVideo] = useState("");
+  const [editLessonVideoUrl, setEditLessonVideoUrl] = useState("");
+  const [editLessonDuration, setEditLessonDuration] = useState(10);
   const [editLessonContent, setEditLessonContent] = useState("");
 
-  // States: Materiais
-  const [showMaterialForm, setShowMaterialForm] = useState<string | null>(null);
-  const [matTitle, setMatTitle] = useState("");
-  const [matUrl, setMatUrl] = useState("");
-
-  // States: Quiz
+  // Quizzes: Unitário e Lote
   const [showQuestionForm, setShowQuestionForm] = useState(false);
-  const [qText, setQTitle] = useState("");
-  const [options, setOptions] = useState([{ text: "", is_correct: false }, { text: "", is_correct: false }]);
+  const [questionText, setQuestionText] = useState("");
+  const [optA, setOptA] = useState("");
+  const [optB, setOptB] = useState("");
+  const [optC, setOptC] = useState("");
+  const [optD, setOptD] = useState("");
+  const [correctOpt, setCorrectOpt] = useState<"A" | "B" | "C" | "D">("A");
 
-  useEffect(() => {
-    isMounted.current = true;
-    loadCourseData(true);
-    return () => { isMounted.current = false; };
-  }, [id]);
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+
+  const [quizPassingScore, setQuizPassingScore] = useState(70);
+  const [quizTimeLimit, setQuizTimeLimit] = useState("");
 
   // =====================================================================
-  // O MOTOR CENTRAL "MODO DEUS": Lê e Envia TUDO nativamente (Sem Cache)
+  // O MOTOR CENTRAL "MODO DEUS"
   // =====================================================================
-  const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
+  const directApiCall = async (tableName: string, method: string, body?: any, query?: string, customPrefer?: string) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     let token = supabaseAnonKey;
@@ -93,7 +95,7 @@ export default function CourseEditorPage() {
         'Content-Type': 'application/json',
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${token}`,
-        'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+        'Prefer': customPrefer || (method === 'POST' ? 'return=representation' : 'return=minimal'),
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache'
       },
@@ -105,8 +107,7 @@ export default function CourseEditorPage() {
       throw new Error(`Erro ${response.status}: ${errText}`);
     }
     
-    // Devolve dados no GET ou no POST
-    if (method === 'GET' || method === 'POST') {
+    if (method === 'GET' || (method === 'POST' && (!customPrefer || customPrefer.includes('return=representation')))) {
       const text = await response.text();
       return text ? JSON.parse(text) : null;
     }
@@ -114,514 +115,651 @@ export default function CourseEditorPage() {
   };
   // =====================================================================
 
-  // LEITURA BLINDADA (Substitui a biblioteca quebrada por fetch)
-  async function loadCourseData(isInitial = false) {
+  useEffect(() => {
+    loadCourseData();
+  }, [id]);
+
+  const loadCourseData = async () => {
     try {
-      if (isInitial && isMounted.current) setLoading(true);
+      setLoading(true);
+      const courseArr = await directApiCall('courses', 'GET', undefined, `id=eq.${id}&select=*`);
+      if (!courseArr || courseArr.length === 0) return;
+      setCourse(courseArr[0]);
+      setEditCourseTitle(courseArr[0].title);
+      setEditCourseDescription(courseArr[0].description || "");
 
-      // 1. Busca a Trilha
-      const courseDataArr = await directApiCall('courses', 'GET', undefined, `id=eq.${id}&select=*`);
-      if (courseDataArr && courseDataArr.length > 0 && isMounted.current) {
-        setCourse(courseDataArr[0]);
+      const modulesArr = await directApiCall('modules', 'GET', undefined, `course_id=eq.${id}&select=*`);
+      const sortedModules = (modulesArr || []).sort((a: any, b: any) => 
+        String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+      );
+
+      const fullModules: ModuleWithLessons[] = [];
+      for (const mod of sortedModules) {
+        const lessonsArr = await directApiCall('lessons', 'GET', undefined, `module_id=eq.${mod.id}&select=*`);
+        const sortedLessons = (lessonsArr || []).sort((a: any, b: any) => 
+          String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
+        );
+
+        const fullLessons: any[] = [];
+        for (const les of sortedLessons) {
+          const matsArr = await directApiCall('materials', 'GET', undefined, `lesson_id=eq.${les.id}&select=*`);
+          fullLessons.push({ ...les, materials: matsArr || [] });
+        }
+        fullModules.push({ ...mod, lessons: fullLessons });
       }
+      setModules(fullModules);
 
-      // 2. Busca Módulos, Aulas e Materiais (Pedindo ao banco para ordenar + Forçando no JS)
-      const modulesData = await directApiCall('modules', 'GET', undefined, `course_id=eq.${id}&select=*,lessons(*,materials(*))&order=title.asc`);
-      
-      if (modulesData && isMounted.current) {
-        // ORDENAÇÃO À PROVA DE BALAS: Ignora espaços extras e entende a ordem numérica (M01, M02...)
-        const sortedModules = [...modulesData]
-          .sort((a: any, b: any) => {
-            const tA = String(a.title || "").trim();
-            const tB = String(b.title || "").trim();
-            return tA.localeCompare(tB, 'pt-BR', { numeric: true, sensitivity: 'base' });
-          })
-          .map((m: any) => ({
-            ...m,
-            lessons: [...(m.lessons || [])].sort((a: any, b: any) => {
-              const tA = String(a.title || "").trim();
-              const tB = String(b.title || "").trim();
-              return tA.localeCompare(tB, 'pt-BR', { numeric: true, sensitivity: 'base' });
-            })
-          }));
-        setModules(sortedModules);
+      const quizArr = await directApiCall('quizzes', 'GET', undefined, `course_id=eq.${id}&select=*`);
+      if (quizArr && quizArr.length > 0) {
+        const baseQuiz = quizArr[0];
+        setQuizPassingScore(baseQuiz.passing_score);
+        setQuizTimeLimit(baseQuiz.time_limit_minutes ? String(baseQuiz.time_limit_minutes) : "");
+
+        const questionsArr = await directApiCall('quiz_questions', 'GET', undefined, `quiz_id=eq.${baseQuiz.id}&select=*&order=order_index.asc`);
+        const fullQuestions: any[] = [];
+        if (questionsArr) {
+          for (const q of questionsArr) {
+            const optionsArr = await directApiCall('quiz_options', 'GET', undefined, `question_id=eq.${q.id}&select=*&order=order_index.asc`);
+            fullQuestions.push({ ...q, quiz_options: optionsArr || [] });
+          }
+        }
+        setQuiz({ ...baseQuiz, quiz_questions: fullQuestions });
+      } else {
+        setQuiz(null);
       }
-
-      // 3. Busca o Quiz
-      const quizDataArr = await directApiCall('quizzes', 'GET', undefined, `course_id=eq.${id}&select=*,quiz_questions(*,quiz_options(*))`);
-      if (quizDataArr && quizDataArr.length > 0 && isMounted.current) {
-        setQuiz(quizDataArr[0]);
-      }
-
     } catch (error) {
-      console.error("Erro ao carregar dados nativos:", error);
+      toast.error("Erro ao sincronizar os dados.");
     } finally {
-      if (isInitial && isMounted.current) setLoading(false);
+      setLoading(false);
     }
-  }
+  };
 
-  const handleUpdateCourse = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!editCourseTitle.trim()) { toast.error("O título é obrigatório."); return; }
-    
-    setSaving(true);
+  const handleUpdateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      await directApiCall('courses', 'PATCH', {
-        title: editCourseTitle,
-        description: editCourseDescription,
-        category: editCourseCategory,
-        level: editCourseLevel
-      }, `id=eq.${id}`);
-
-      toast.success("Trilha salva com sucesso absoluto! 🚀");
+      setSaving(true);
+      await directApiCall('courses', 'PATCH', { title: editCourseTitle, description: editCourseDescription }, `id=eq.${id}`);
+      toast.success("Trilha atualizada!");
       setShowEditCourseModal(false);
-      loadCourseData(false);
-    } catch (error: any) {
-      toast.error(error.message || "Falha na comunicação.");
-    } finally { setSaving(false); }
+      await loadCourseData();
+    } catch (error) { toast.error("Erro ao atualizar trilha."); } finally { setSaving(false); }
   };
 
-  // --- Funções de Módulos ---
-  const handleAddModule = async (e?: any) => {
-    if (e) e.preventDefault();
-    if (!newModuleTitle.trim()) { toast.error("Preencha o nome."); return; }
-    setSaving(true);
+  // --- Módulos ---
+  const handleAddModule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!moduleTitle) return;
     try {
-      await directApiCall('modules', 'POST', { course_id: id, title: newModuleTitle, order_index: modules.length + 1 });
-      toast.success("Módulo adicionado! 🚀");
-      setNewModuleTitle(""); setShowModuleForm(false); loadCourseData(false);
-    } catch (error: any) { toast.error("Erro ao adicionar módulo."); } finally { setSaving(false); }
+      setSaving(true);
+      const nextOrder = modules.length + 1;
+      await directApiCall('modules', 'POST', { course_id: id, title: moduleTitle, order_index: nextOrder });
+      toast.success("Módulo adicionado!");
+      setModuleTitle(""); setShowModuleForm(false);
+      await loadCourseData();
+    } catch (error) { toast.error("Erro ao adicionar módulo."); } finally { setSaving(false); }
   };
 
-  const handleUpdateModule = async (moduleId: string) => {
-    if (!editModTitle.trim()) return;
-    setSaving(true);
+  const handleUpdateModule = async (modId: string) => {
+    if (!editModuleTitle) return;
     try {
-      await directApiCall('modules', 'PATCH', { title: editModTitle }, `id=eq.${moduleId}`);
-      toast.success("Módulo atualizado! 🚀");
-      setEditingModId(null); setEditModTitle(""); loadCourseData(false);
+      setSaving(true);
+      await directApiCall('modules', 'PATCH', { title: editModuleTitle }, `id=eq.${modId}`);
+      toast.success("Módulo atualizado com sucesso!");
+      setEditingModuleId(null);
+      await loadCourseData();
     } catch (error) { toast.error("Erro ao atualizar módulo."); } finally { setSaving(false); }
   };
 
-  const handleDeleteModule = async (moduleId: string) => {
-    if(!confirm("Atenção: Eliminar este módulo vai apagar todas as aulas dentro dele! Continuar?")) return;
-    setSaving(true);
+  const handleDeleteModule = async (modId: string) => {
+    if (!confirm("Excluir este módulo apagará todas as aulas nele. Continuar?")) return;
     try {
-      await directApiCall('modules', 'DELETE', undefined, `id=eq.${moduleId}`);
-      toast.success("Módulo eliminado! 🚀");
-      loadCourseData(false);
-    } catch (error) { toast.error("Erro ao eliminar módulo."); } finally { setSaving(false); }
+      await directApiCall('modules', 'DELETE', undefined, `id=eq.${modId}`);
+      toast.success("Módulo removido.");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); }
   };
 
-  // --- Funções de Aulas ---
-  const handleAddLesson = async (e?: any) => {
-    if (e) e.preventDefault();
-    if (!lessonTitle.trim()) { toast.error("Preencha o título da aula."); return; }
-    setSaving(true);
+  // --- Aulas ---
+  const handleAddLesson = async (e: React.FormEvent, moduleId: string) => {
+    e.preventDefault();
     try {
-      const mod = modules.find(m => m.id === activeLessonModuleId);
+      setSaving(true);
+      const mod = modules.find(m => m.id === moduleId);
+      const nextOrder = (mod?.lessons?.length || 0) + 1;
       await directApiCall('lessons', 'POST', {
-        module_id: activeLessonModuleId, title: lessonTitle, video_url: lessonVideo || null, content: lessonContent || null, duration_minutes: parseInt(lessonDuration) || 10, order_index: (mod?.lessons?.length || 0) + 1
+        module_id: moduleId, title: lessonTitle, video_url: lessonVideoUrl || null,
+        duration_minutes: Number(lessonDuration) || 10, content: lessonContent || null, order_index: nextOrder
       });
-      toast.success("Aula adicionada! 🚀");
-      setLessonTitle(""); setLessonVideo(""); setLessonContent(""); setLessonDuration("");
-      setActiveLessonModuleId(null); loadCourseData(false);
-    } catch (error: any) { toast.error("Erro ao adicionar aula."); } finally { setSaving(false); }
+      toast.success("Aula salva!");
+      setLessonTitle(""); setLessonVideoUrl(""); setLessonDuration(10); setLessonContent(""); setShowLessonForm(null);
+      await loadCourseData();
+    } catch (error) { toast.error("Erro ao salvar aula."); } finally { setSaving(false); }
   };
 
-  const handleUpdateLesson = async (lessonId: string) => {
-    if (!editLessonTitle.trim()) { toast.error("O título é obrigatório."); return; }
-    setSaving(true);
+  const handleUpdateLesson = async (lesId: string) => {
+    if (!editLessonTitle) return;
     try {
-      await directApiCall('lessons', 'PATCH', { 
-        title: editLessonTitle, 
-        video_url: editLessonVideo || null, 
-        content: editLessonContent || null 
-      }, `id=eq.${lessonId}`);
-      toast.success("Aula atualizada! 🚀");
+      setSaving(true);
+      await directApiCall('lessons', 'PATCH', {
+        title: editLessonTitle,
+        video_url: editLessonVideoUrl || null,
+        duration_minutes: Number(editLessonDuration) || 10,
+        content: editLessonContent || null
+      }, `id=eq.${lesId}`);
+      toast.success("Aula atualizada com sucesso!");
       setEditingLessonId(null);
-      loadCourseData(false);
-    } catch (error) { 
-      toast.error("Erro ao atualizar aula."); 
-    } finally { 
-      setSaving(false); 
-    }
+      await loadCourseData();
+    } catch (error) { toast.error("Erro ao atualizar aula."); } finally { setSaving(false); }
   };
 
   const handleDeleteLesson = async (lessonId: string) => {
-    if(!confirm("Eliminar aula?")) return;
-    setSaving(true);
+    if (!confirm("Excluir esta aula?")) return;
     try {
       await directApiCall('lessons', 'DELETE', undefined, `id=eq.${lessonId}`);
-      toast.success("Aula eliminada! 🚀");
-      loadCourseData(false);
-    } catch (error) { toast.error("Erro ao eliminar aula."); } finally { setSaving(false); }
+      toast.success("Aula excluída.");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); }
   };
 
-  // --- Funções de Materiais ---
-  const handleAddMaterial = async (lessonId: string, e?: any) => {
-    if (e) e.preventDefault();
-    if (!matTitle || !matUrl) { toast.error("Preencha o nome e o link."); return; }
-    setSaving(true);
+  // --- Materiais ---
+  const handleAddMaterial = async (e: React.FormEvent, lessonId: string) => {
+    e.preventDefault();
     try {
-      await directApiCall('materials', 'POST', { lesson_id: lessonId, course_id: id, title: matTitle, file_url: matUrl });
-      toast.success("Material adicionado! 🚀");
-      setMatTitle(""); setMatUrl(""); setShowMaterialForm(null); loadCourseData(false);
-    } catch (error) { toast.error("Erro ao salvar material."); } finally { setSaving(false); }
+      setSaving(true);
+      await directApiCall('materials', 'POST', {
+        lesson_id: lessonId, course_id: id, title: materialTitle, file_url: materialFileUrl, file_size: materialFileSize || "1.5 MB"
+      });
+      toast.success("Material anexado!");
+      setMaterialTitle(""); setMaterialFileUrl(""); setMaterialFileSize(""); setShowMaterialForm(null);
+      await loadCourseData();
+    } catch (error) { toast.error("Erro ao anexar."); } finally { setSaving(false); }
   };
 
-  const handleDeleteMaterial = async (materialId: string) => {
-    if(!confirm("Eliminar material?")) return;
-    setSaving(true);
+  const handleDeleteMaterial = async (matId: string) => {
+    if (!confirm("Remover este material?")) return;
     try {
-      await directApiCall('materials', 'DELETE', undefined, `id=eq.${materialId}`);
-      toast.success("Material removido! 🚀");
-      loadCourseData(false);
-    } catch (error) { toast.error("Erro ao eliminar material."); } finally { setSaving(false); }
+      await directApiCall('materials', 'DELETE', undefined, `id=eq.${matId}`);
+      toast.success("Material removido.");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); }
   };
 
-  // --- Funções de Quiz ---
-  const handleCreateQuiz = async (e?: any) => {
-    if (e) e.preventDefault();
-    setSaving(true);
-    try {
-      await directApiCall('quizzes', 'POST', { course_id: id, title: `Avaliação: ${course?.title}`, passing_score: 70 });
-      toast.success("Quiz criado! 🚀");
-      loadCourseData(false);
-    } catch (error) { toast.error("Erro ao criar quiz."); } finally { setSaving(false); }
-  };
-
-  const handleAddQuestion = async (e?: any) => {
-    if (e) e.preventDefault();
-    if (!quiz || !qText.trim()) { toast.error("Escreva a pergunta."); return; }
-    if (!options.some(o => o.is_correct)) { toast.error("Marque ao menos uma opção como correta."); return; }
-    setSaving(true);
-    try {
-      const newQArray = await directApiCall('quiz_questions', 'POST', { quiz_id: quiz.id, question: qText, order_index: (quiz.quiz_questions?.length || 0) + 1 });
-      const newQId = newQArray[0].id;
-
-      const optionsToInsert = options.map((opt, i) => ({ question_id: newQId, text: opt.text, is_correct: opt.is_correct, order_index: i + 1 }));
-      await directApiCall('quiz_options', 'POST', optionsToInsert);
-
-      toast.success("Pergunta adicionada! 🚀");
-      setQTitle(""); setOptions([{ text: "", is_correct: false }, { text: "", is_correct: false }]);
-      setShowQuestionForm(false); loadCourseData(false);
-    } catch (error) { toast.error("Erro ao salvar pergunta."); } finally { setSaving(false); }
-  };
-
-  const handleDeleteQuestion = async (questionId: string) => {
-    if(!confirm("Excluir pergunta?")) return;
-    setSaving(true);
-    try {
-      await directApiCall('quiz_questions', 'DELETE', undefined, `id=eq.${questionId}`);
-      toast.success("Pergunta eliminada! 🚀");
-      loadCourseData(false);
-    } catch (error) { toast.error("Erro ao eliminar pergunta."); } finally { setSaving(false); }
-  };
-
-  const openEditCourseModal = () => {
+  // --- Quiz Base ---
+  const handleCreateBaseQuiz = async () => {
     if (!course) return;
-    setEditCourseTitle(course.title || "");
-    setEditCourseDescription(course.description || "");
-    setEditCourseCategory(course.category || "Fundamentos");
-    setEditCourseLevel(course.level || "beginner");
-    setShowEditCourseModal(true);
+    try {
+      setSaving(true);
+      await directApiCall('quizzes', 'POST', {
+        course_id: id, title: `Quiz Final — ${course.title}`, description: `Avaliação de certificação.`, passing_score: 70
+      });
+      toast.success("Quiz inicializado!");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); } finally { setSaving(false); }
   };
 
-  if (loading && !course) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-cota-green border-t-transparent rounded-full animate-spin" /></div>;
+  const handleUpdateQuizConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quiz) return;
+    try {
+      setSaving(true);
+      await directApiCall('quizzes', 'PATCH', {
+        passing_score: Number(quizPassingScore), time_limit_minutes: quizTimeLimit ? Number(quizTimeLimit) : null
+      }, `id=eq.${quiz.id}`);
+      toast.success("Regras salvas!");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); } finally { setSaving(false); }
+  };
+
+  // --- Quiz Unitário ---
+  const handleAddQuestionWithOptions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quiz || !questionText || !optA || !optB || !optC || !optD) return;
+
+    try {
+      setSaving(true);
+      const nextOrder = (quiz.quiz_questions?.length || 0) + 1;
+      
+      const qRes = await directApiCall('quiz_questions', 'POST', {
+        quiz_id: quiz.id, question: questionText, order_index: nextOrder
+      }, 'return=representation');
+      const newQId = Array.isArray(qRes) ? qRes[0]?.id : qRes?.id;
+
+      if (!newQId) throw new Error("ID não retornado");
+
+      await Promise.all([
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optA, is_correct: correctOpt === "A", order_index: 1 }),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optB, is_correct: correctOpt === "B", order_index: 2 }),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optC, is_correct: correctOpt === "C", order_index: 3 }),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optD, is_correct: correctOpt === "D", order_index: 4 }),
+      ]);
+
+      toast.success("Pergunta registrada!");
+      setShowQuestionForm(false); setQuestionText(""); setOptA(""); setOptB(""); setOptC(""); setOptD("");
+      await loadCourseData();
+    } catch (error: any) { toast.error(`Erro: ${error.message}`); } finally { setSaving(false); }
+  };
+
+  // --- Importador Mágico ---
+  const handleBulkImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quiz || !bulkText.trim()) return;
+
+    try {
+      setSaving(true);
+      const lines = bulkText.split('\n');
+      let currentQ: { question: string, options: { text: string, is_correct: boolean }[] } | null = null;
+      const parsedQuestions: { question: string, options: { text: string, is_correct: boolean }[] }[] = [];
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+
+        if (line.toLowerCase().includes('pergunta') && line.includes(':')) {
+          if (currentQ && currentQ.options.length > 0) parsedQuestions.push(currentQ);
+          const qText = line.split(':').slice(1).join(':').replace(/\*\*/g, '').trim();
+          currentQ = { question: qText, options: [] };
+        } 
+        else {
+          const optMatch = line.match(/^[-\*\•]?\s*\[\s*([xXvV]?)\s*\]\s*(.*)/);
+          if (optMatch && currentQ) {
+            const isCorrect = ['x', 'v'].includes(optMatch[1].toLowerCase());
+            const optText = optMatch[2].replace(/\*\*/g, '').trim();
+            currentQ.options.push({ text: optText, is_correct: isCorrect });
+          }
+        }
+      }
+      
+      if (currentQ && currentQ.options.length > 0) parsedQuestions.push(currentQ);
+
+      if (parsedQuestions.length === 0) {
+        toast.error("Formato inválido. Não encontrei nenhuma pergunta.");
+        setSaving(false); return;
+      }
+
+      let baseOrder = quiz.quiz_questions?.length || 0;
+      let successCount = 0;
+
+      for (const pq of parsedQuestions) {
+        baseOrder++;
+        const qRes = await directApiCall('quiz_questions', 'POST', {
+          quiz_id: quiz.id, question: pq.question, order_index: baseOrder
+        }, 'return=representation');
+
+        const newQId = Array.isArray(qRes) ? qRes[0]?.id : qRes?.id;
+        if (!newQId) throw new Error(`Falha no ID da pergunta: ${pq.question.substring(0, 15)}...`);
+
+        const optsPromises = pq.options.map((opt, idx) => 
+          directApiCall('quiz_options', 'POST', {
+            question_id: newQId, text: opt.text, is_correct: opt.is_correct, order_index: idx + 1
+          }, 'return=minimal')
+        );
+        await Promise.all(optsPromises);
+        successCount++;
+      }
+
+      toast.success(`${successCount} perguntas importadas com sucesso! 🚀`);
+      setShowBulkForm(false); setBulkText("");
+      await loadCourseData();
+    } catch (error: any) {
+      toast.error(`Falha: ${error.message}`);
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteQuestion = async (qId: string) => {
+    if (!confirm("Excluir pergunta?")) return;
+    try {
+      await directApiCall('quiz_questions', 'DELETE', undefined, `id=eq.${qId}`);
+      toast.success("Pergunta removida.");
+      await loadCourseData();
+    } catch (error) { toast.error("Erro."); }
+  };
+
+  const toggleModuleExpanded = (modId: string) => setExpandedModules((prev) => prev.includes(modId) ? prev.filter((id) => id !== modId) : [...prev, modId]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20 w-full">
+      <div className="w-8 h-8 border-4 border-cota-green border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div className="max-w-5xl mx-auto pb-20">
-      
-      {/* Modal de Editar Trilha */}
+    <div className="w-full max-w-6xl mx-auto px-2 md:px-4">
+      {/* Modal Editar Trilha */}
       {showEditCourseModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-cota-green" /> Editar Trilha
-              </h2>
-              <button onClick={() => setShowEditCourseModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h2 className="font-bold text-gray-800">Editar Trilha</h2>
+              <button onClick={() => setShowEditCourseModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 space-y-4">
+            <form onSubmit={handleUpdateCourse} className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título da Trilha</label>
-                <input type="text" value={editCourseTitle} onChange={e => setEditCourseTitle(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cota-green" disabled={saving} />
+                <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Título</label>
+                <input type="text" value={editCourseTitle} onChange={(e) => setEditCourseTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-                <textarea rows={3} value={editCourseDescription} onChange={e => setEditCourseDescription(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cota-green resize-none" disabled={saving} />
+                <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Descrição</label>
+                <textarea value={editCourseDescription} onChange={(e) => setEditCourseDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green resize-none" />
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                  <select 
-                    value={editCourseCategory} 
-                    onChange={e => setEditCourseCategory(e.target.value)} 
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cota-green" 
-                    disabled={saving}
-                  >
-                    <option value="Fundamentos">Fundamentos (Trilha 1)</option>
-                    <option value="Vendas">Vendas & Fechamento (Trilhas 2, 3 e 8)</option>
-                    <option value="Atendimento">Atendimento & WhatsApp (Trilha 7)</option>
-                    <option value="Marketing">Marketing Digital (Trilha 5)</option>
-                    <option value="Compliance">Compliance & Ética (Trilha 6)</option>
-                    <option value="Pós-venda">Pós-venda & Relacionamento (Trilha 9)</option>
-                    <option value="Lideranca">Gestão & Liderança (Trilha 4)</option>
-                    <option value="Imóveis">Específico: Imóveis</option>
-                    <option value="Automóveis">Específico: Automóveis</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nível</label>
-                  <select 
-                    value={editCourseLevel} 
-                    onChange={e => setEditCourseLevel(e.target.value)} 
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cota-green" 
-                    disabled={saving}
-                  >
-                    <option value="beginner">Iniciante (0 a 30 dias)</option>
-                    <option value="intermediate">Em Desenvolvimento (30 a 60 dias)</option>
-                    <option value="advanced">Avançado (60 a 90 dias)</option>
-                    <option value="leadership">Líderes Comerciais</option>
-                  </select>
-                </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowEditCourseModal(false)} className="flex-1 border py-2 rounded-lg text-sm">Cancelar</button>
+                <button type="submit" disabled={saving} className="flex-1 bg-cota-green text-white py-2 rounded-lg text-sm font-bold">{saving ? "Salvando..." : "Salvar"}</button>
               </div>
-
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowEditCourseModal(false)} disabled={saving} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
-                <button type="button" onClick={handleUpdateCourse} disabled={saving} className="flex-1 px-4 py-2 bg-cota-green text-white rounded-lg text-sm font-bold hover:bg-cota-green-light disabled:opacity-50 transition-colors">{saving ? "Salvando..." : "Salvar Alterações"}</button>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      <Link to="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-cota-green mb-6 transition-colors">
-        <ChevronLeft className="w-4 h-4" /> Voltar ao Painel
-      </Link>
-
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-3">
-              Gestão da Trilha
-              <button onClick={openEditCourseModal} className="p-1.5 bg-gray-100 hover:bg-cota-green/10 text-gray-500 hover:text-cota-green rounded-lg transition-colors" title="Editar dados da Trilha">
-                <Edit2 className="w-4 h-4" />
-              </button>
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">Configurando: <span className="font-semibold text-cota-green">{course?.title}</span></p>
-          </div>
-          <div className="flex bg-gray-100 p-1 rounded-lg">
-            <button onClick={() => setTab("structure")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${tab === "structure" ? "bg-white text-cota-green shadow-sm" : "text-gray-500"}`}>Estrutura</button>
-            <button onClick={() => setTab("quiz")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${tab === "quiz" ? "bg-white text-cota-green shadow-sm" : "text-gray-500"}`}>Quiz Final</button>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-2">
+          <Link to="/admin" className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-cota-green shadow-sm">
+            <ChevronLeft className="w-4 h-4" />
+          </Link>
+          <div className="flex items-center gap-3">
+            <div>
+              <span className="text-xs font-bold text-cota-gold uppercase tracking-wider">Editor de Conteúdo</span>
+              <h1 className="text-lg md:text-xl font-black text-gray-800 leading-tight">{course?.title}</h1>
+            </div>
+            <button onClick={() => setShowEditCourseModal(true)} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
           </div>
         </div>
+      </div>
 
-        {tab === "structure" ? (
-          <>
-            <div className="flex justify-end mb-6">
-              <button onClick={() => setShowModuleForm(true)} className="flex items-center gap-2 bg-cota-gold text-cota-green-dark px-4 py-2 rounded-lg text-sm font-bold hover:opacity-90">
-                <Plus className="w-4 h-4" /> Novo Módulo
-              </button>
+      {/* Tabs Menu */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
+        <button onClick={() => setTab("structure")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all ${tab === "structure" ? "bg-white text-cota-green shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <BookOpen className="w-4 h-4" /> Estrutura da Trilha
+        </button>
+        <button onClick={() => setTab("quiz")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all ${tab === "quiz" ? "bg-white text-cota-green shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <Trophy className="w-4 h-4" /> Quiz Final da Trilha
+        </button>
+      </div>
+
+      {/* TAB 1: ESTRUTURA DA TRILHA */}
+      {tab === "structure" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div>
+              <h2 className="font-bold text-gray-800 text-sm md:text-base">Módulos e Aulas</h2>
+              <p className="text-xs text-gray-400">{modules.length} módulos estruturados de A-Z</p>
             </div>
+            <button onClick={() => setShowModuleForm(!showModuleForm)} className="flex items-center gap-1.5 bg-cota-green text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-cota-green-light transition-all">
+              <Plus className="w-4 h-4" /> Novo Módulo
+            </button>
+          </div>
 
-            {showModuleForm && (
-              <div className="bg-gray-50 p-4 rounded-lg border border-dashed border-cota-gold/50 mb-6 flex gap-3">
-                <input type="text" placeholder="Nome do Módulo" value={newModuleTitle} onChange={(e) => setNewModuleTitle(e.target.value)} className="flex-1 border rounded-lg px-3 text-sm focus:outline-none focus:border-cota-gold" disabled={saving} />
-                <button type="button" onClick={handleAddModule} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                <button type="button" onClick={() => setShowModuleForm(false)} className="text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
+          {showModuleForm && (
+            <form onSubmit={handleAddModule} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+              <p className="text-xs font-bold text-gray-700 uppercase">Título do Módulo</p>
+              <input type="text" value={moduleTitle} onChange={(e) => setModuleTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setShowModuleForm(false)} className="text-xs text-gray-500 px-3 py-2">Cancelar</button>
+                <button type="submit" disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-xs font-bold">Criar Módulo</button>
               </div>
-            )}
+            </form>
+          )}
 
-            <div className="space-y-4">
-              {modules.map((mod) => (
+          <div className="space-y-3">
+            {modules.map((mod) => {
+              const isExpanded = expandedModules.includes(mod.id);
+              return (
                 <div key={mod.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 cursor-pointer" onClick={() => setExpandedModuleId(expandedModuleId === mod.id ? null : mod.id)}>
-                    
-                    {editingModId === mod.id ? (
-                      <div className="flex items-center gap-2 w-full pr-4" onClick={e => e.stopPropagation()}>
-                        <BookOpen className="w-5 h-5 text-cota-green" />
-                        <input type="text" value={editModTitle} onChange={e => setEditModTitle(e.target.value)} className="flex-1 border border-gray-200 rounded px-2 py-1 text-sm font-bold text-gray-800 focus:outline-none focus:border-cota-green" autoFocus />
-                        <button type="button" onClick={() => handleUpdateModule(mod.id)} disabled={saving} className="bg-cota-green text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50">Salvar</button>
-                        <button type="button" onClick={() => setEditingModId(null)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                  
+                  {/* HEADER DO MÓDULO (COM EDIÇÃO) */}
+                  {editingModuleId === mod.id ? (
+                    <div className="flex items-center gap-2 p-4 bg-gray-50 border-b border-gray-100">
+                      <input type="text" value={editModuleTitle} onChange={(e) => setEditModuleTitle(e.target.value)} className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" autoFocus />
+                      <button onClick={() => handleUpdateModule(mod.id)} disabled={saving} className="px-3 py-1.5 bg-cota-green text-white text-xs font-bold rounded-lg hover:bg-cota-green-light">Salvar</button>
+                      <button onClick={() => setEditingModuleId(null)} className="px-3 py-1.5 text-gray-500 hover:text-gray-700 text-xs">Cancelar</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-4 bg-gray-50/60 border-b border-gray-100">
+                      <button type="button" onClick={() => toggleModuleExpanded(mod.id)} className="flex items-center gap-3 font-bold text-gray-700 text-sm text-left flex-1 min-w-0">
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                        <span className="truncate">{mod.title}</span>
+                      </button>
+                      <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                        <button type="button" onClick={() => setShowLessonForm(showLessonForm === mod.id ? null : mod.id)} className="text-xs bg-cota-green/10 text-cota-green px-2.5 py-1 rounded font-bold hover:bg-cota-green hover:text-white transition-all mr-1">
+                          + Aula
+                        </button>
+                        <button type="button" onClick={() => { setEditingModuleId(mod.id); setEditModuleTitle(mod.title); }} className="p-1.5 text-gray-400 hover:text-cota-green rounded-lg transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => handleDeleteModule(mod.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <BookOpen className="w-5 h-5 text-cota-green" />
-                          <h3 className="font-bold text-gray-800">{mod.title}</h3>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); setEditingModId(mod.id); setEditModTitle(mod.title); }} className="text-gray-400 hover:text-cota-green transition-colors p-1" title="Editar Módulo">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }} className="text-gray-400 hover:text-red-500 transition-colors p-1 mr-2" title="Eliminar Módulo">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <div className="border-l border-gray-200 pl-2">
-                            {expandedModuleId === mod.id ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {expandedModuleId === mod.id && (
-                    <div className="p-6 border-t border-gray-100">
-                      <div className="space-y-4 mb-6">
-                        {mod.lessons.map(lesson => (
-                          <div key={lesson.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-                            
-                            {/* === INÍCIO: MODO DE EDIÇÃO DA AULA === */}
-                            {editingLessonId === lesson.id ? (
-                              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 mb-3">
-                                <input type="text" placeholder="Título da Aula" value={editLessonTitle} onChange={(e) => setEditLessonTitle(e.target.value)} className="w-full text-sm p-2 border rounded" disabled={saving} />
-                                <input type="text" placeholder="Link do Vídeo (Opcional)" value={editLessonVideo} onChange={(e) => setEditLessonVideo(e.target.value)} className="w-full text-sm p-2 border rounded" disabled={saving} />
-                                <textarea placeholder="Conteúdo escrito / Resumo da aula" rows={4} value={editLessonContent} onChange={(e) => setEditLessonContent(e.target.value)} className="w-full text-sm p-2 border rounded resize-none" disabled={saving} />
-                                <div className="flex gap-2">
-                                  <button type="button" onClick={() => handleUpdateLesson(lesson.id)} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50">Salvar Alterações</button>
-                                  <button type="button" onClick={() => setEditingLessonId(null)} className="text-sm text-gray-500 px-2 hover:text-gray-700">Cancelar</button>
+                  {/* FORMULÁRIO DE NOVA AULA */}
+                  {showLessonForm === mod.id && (
+                    <form onSubmit={(e) => handleAddLesson(e, mod.id)} className="p-5 border-b border-gray-100 bg-gray-50/50 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Nome da Aula</label>
+                          <input type="text" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Duração (Minutos)</label>
+                          <input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">URL do Vídeo</label>
+                        <input type="text" value={lessonVideoUrl} onChange={(e) => setLessonVideoUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Conteúdo (Markdown)</label>
+                        <textarea value={lessonContent} onChange={(e) => setLessonContent(e.target.value)} rows={6} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono bg-white resize-none" />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button type="button" onClick={() => setShowLessonForm(null)} className="text-xs text-gray-500 px-3 py-2">Cancelar</button>
+                        <button type="submit" className="bg-cota-green text-white px-4 py-2 rounded-lg text-xs font-bold">Salvar Nova Aula</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* LISTAGEM DE AULAS */}
+                  {isExpanded && (
+                    <div className="divide-y divide-gray-100 bg-white">
+                      {mod.lessons.map((les) => (
+                        <div key={les.id}>
+                          {/* LINHA DE EDIÇÃO DE AULA */}
+                          {editingLessonId === les.id ? (
+                            <div className="p-5 bg-gray-50/80 space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="md:col-span-2">
+                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Aula</label>
+                                  <input type="text" value={editLessonTitle} onChange={(e) => setEditLessonTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Duração</label>
+                                  <input type="number" value={editLessonDuration} onChange={(e) => setEditLessonDuration(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
                                 </div>
                               </div>
-                            ) : (
-                              <div className="flex justify-between items-center mb-3">
-                                <div className="flex items-center gap-3">
-                                  <Video className="w-4 h-4 text-cota-green" />
-                                  <span className="font-semibold text-gray-700">{lesson.title}</span>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">URL do Vídeo</label>
+                                <input type="text" value={editLessonVideoUrl} onChange={(e) => setEditLessonVideoUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Conteúdo (Markdown)</label>
+                                <textarea value={editLessonContent} onChange={(e) => setEditLessonContent(e.target.value)} rows={5} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:border-cota-green resize-none" />
+                              </div>
+                              <div className="flex gap-2 justify-end pt-2">
+                                <button onClick={() => setEditingLessonId(null)} className="text-xs text-gray-500 px-3 py-2 hover:text-gray-700">Cancelar</button>
+                                <button onClick={() => handleUpdateLesson(les.id)} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-cota-green-light">Salvar Alterações</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Video className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <div>
+                                    <p className="font-semibold text-gray-700 text-sm truncate">{les.title}</p>
+                                    <p className="text-xs text-gray-400">{les.duration_minutes} min {les.video_url ? "· Com Vídeo" : "· Apenas Leitura"}</p>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <button type="button" onClick={() => setShowMaterialForm(showMaterialForm === les.id ? null : les.id)} className="text-[11px] border border-gray-200 text-gray-500 hover:border-cota-green hover:text-cota-green px-2 py-1 rounded font-medium mr-1">
+                                    + Material
+                                  </button>
                                   <button type="button" onClick={() => {
-                                    setEditingLessonId(lesson.id);
-                                    setEditLessonTitle(lesson.title);
-                                    setEditLessonVideo(lesson.video_url || "");
-                                    setEditLessonContent(lesson.content || "");
-                                  }} className="text-gray-400 hover:text-cota-green transition-colors p-1" title="Editar Aula">
+                                    setEditingLessonId(les.id);
+                                    setEditLessonTitle(les.title);
+                                    setEditLessonDuration(les.duration_minutes);
+                                    setEditLessonVideoUrl(les.video_url || "");
+                                    setEditLessonContent(les.content || "");
+                                  }} className="p-1.5 text-gray-400 hover:text-cota-green rounded-lg transition-colors">
                                     <Edit2 className="w-4 h-4" />
                                   </button>
-                                  <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1" title="Excluir Aula">
+                                  <button type="button" onClick={() => handleDeleteLesson(les.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
-                            )}
-                            {/* === FIM: MODO DE EDIÇÃO DA AULA === */}
-                            
-                            <div className="ml-7 space-y-2">
-                              {lesson.materials.map(m => (
-                                <div key={m.id} className="flex items-center justify-between bg-gray-50 px-3 py-1.5 rounded-lg text-xs">
-                                  <div className="flex items-center gap-2 text-gray-600"><FileText className="w-3 h-3" /> {m.title}</div>
-                                  <button type="button" onClick={() => handleDeleteMaterial(m.id)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
-                                </div>
-                              ))}
-                              
-                              {showMaterialForm === lesson.id ? (
-                                <div className="bg-cota-gold/5 p-3 rounded-lg border border-cota-gold/20 mt-2 space-y-2">
-                                  <input type="text" placeholder="Nome do PDF/Link" value={matTitle} onChange={(e) => setMatTitle(e.target.value)} className="w-full text-xs p-2 border rounded" disabled={saving} />
-                                  <input type="text" placeholder="URL do ficheiro" value={matUrl} onChange={(e) => setMatUrl(e.target.value)} className="w-full text-xs p-2 border rounded" disabled={saving} />
-                                  <div className="flex gap-2">
-                                    <button type="button" onClick={() => handleAddMaterial(lesson.id)} disabled={saving} className="bg-cota-gold text-cota-green-dark px-3 py-1 rounded text-xs font-bold disabled:opacity-50">Salvar Material</button>
-                                    <button type="button" onClick={() => setShowMaterialForm(null)} className="text-xs text-gray-500">Cancelar</button>
+
+                              {showMaterialForm === les.id && (
+                                <form onSubmit={(e) => handleAddMaterial(e, les.id)} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <input type="text" value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} placeholder="Nome do Arquivo" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
+                                    <input type="text" value={materialFileUrl} onChange={(e) => setMaterialFileUrl(e.target.value)} placeholder="URL do arquivo" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
                                   </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <button type="button" onClick={() => setShowMaterialForm(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                                    <button type="submit" className="bg-cota-green text-white px-3 py-1.5 rounded-lg text-xs font-bold">Anexar</button>
+                                  </div>
+                                </form>
+                              )}
+
+                              {les.materials && les.materials.length > 0 && (
+                                <div className="pl-6 flex flex-col gap-1.5">
+                                  {les.materials.map((mat) => (
+                                    <div key={mat.id} className="flex items-center justify-between max-w-md bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 text-xs text-gray-600">
+                                      <span className="truncate font-medium">{mat.title}</span>
+                                      <button type="button" onClick={() => handleDeleteMaterial(mat.id)} className="text-gray-400 hover:text-red-500 ml-2"><X className="w-3.5 h-3.5" /></button>
+                                    </div>
+                                  ))}
                                 </div>
-                              ) : (
-                                <button type="button" onClick={() => setShowMaterialForm(lesson.id)} className="text-[10px] uppercase tracking-wider font-bold text-cota-gold hover:text-cota-gold-dark flex items-center gap-1"><Plus className="w-3 h-3" /> Adicionar Material</button>
                               )}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {activeLessonModuleId === mod.id ? (
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
-                          <input type="text" placeholder="Título da Aula" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} className="w-full text-sm p-2 border rounded" disabled={saving} />
-                          <input type="text" placeholder="Link do Vídeo (Opcional)" value={lessonVideo} onChange={(e) => setLessonVideo(e.target.value)} className="w-full text-sm p-2 border rounded" disabled={saving} />
-                          <textarea placeholder="Conteúdo escrito / Resumo da aula" rows={4} value={lessonContent} onChange={(e) => setLessonContent(e.target.value)} className="w-full text-sm p-2 border rounded resize-none" disabled={saving} />
-                          <div className="flex gap-2">
-                            <button type="button" onClick={handleAddLesson} disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50">Salvar Aula</button>
-                            <button type="button" onClick={() => setActiveLessonModuleId(null)} className="text-sm text-gray-500 px-2 hover:text-gray-700">Cancelar</button>
-                          </div>
+                          )}
                         </div>
-                      ) : (
-                        <button type="button" onClick={() => setActiveLessonModuleId(mod.id)} className="text-sm text-cota-green font-semibold flex items-center gap-1"><Plus className="w-4 h-4" /> Adicionar Aula neste Módulo</button>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-              {modules.length === 0 && !showModuleForm && (
-                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                  <BookOpen className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">Esta trilha ainda não tem módulos.</p>
-                </div>
-              )}
+      {/* TAB 2: QUIZ FINAL DA TRILHA */}
+      {tab === "quiz" && (
+        <div className="space-y-4">
+          {!quiz ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center shadow-sm max-w-xl mx-auto">
+              <Trophy className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <h3 className="font-bold text-gray-800 text-base mb-1">Nenhum Quiz Inicializado</h3>
+              <p className="text-xs text-gray-500 mb-5">Esta trilha ainda não possui uma avaliação final.</p>
+              <button type="button" onClick={handleCreateBaseQuiz} disabled={saving} className="bg-cota-green hover:bg-cota-green-light text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors">
+                Inicializar Quiz Final da Trilha
+              </button>
             </div>
-          </>
-        ) : (
-          <div className="space-y-6">
-            {!quiz ? (
-              <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                <HelpCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="font-bold text-gray-700">Nenhum Quiz Criado</h3>
-                <p className="text-sm text-gray-500 mb-6">Cria uma avaliação final para que os alunos possam obter o certificado.</p>
-                <button type="button" onClick={handleCreateQuiz} disabled={saving} className="bg-cota-green text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50">Criar Quiz Agora</button>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              
+              <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
+                <h3 className="font-bold text-gray-800 text-sm mb-0">Configurações Base</h3>
+                <form onSubmit={handleUpdateQuizConfig} className="space-y-4">
+                  <div>
+                    <label className="flex text-xs font-bold text-gray-600 uppercase mb-1 items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-cota-green" /> Nota Mínima (%)</label>
+                    <input type="number" value={quizPassingScore} onChange={(e) => setQuizPassingScore(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" min={0} max={100} required />
+                  </div>
+                  <div>
+                    <label className="flex text-xs font-bold text-gray-600 uppercase mb-1 items-center gap-1"><Clock className="w-3.5 h-3.5 text-blue-500" /> Tempo Limite (Min)</label>
+                    <input type="number" value={quizTimeLimit} onChange={(e) => setQuizTimeLimit(e.target.value)} placeholder="Ilimitado" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                  <button type="submit" disabled={saving} className="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold text-xs py-2 rounded-lg">Atualizar</button>
+                </form>
               </div>
-            ) : (
-              <>
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-cota-green" /> {quiz.quiz_questions?.length || 0} Perguntas Registadas</h3>
-                  <button type="button" onClick={() => setShowQuestionForm(true)} className="bg-cota-gold text-cota-green-dark px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90"><Plus className="w-4 h-4" /> Nova Pergunta</button>
+
+              <div className="lg:col-span-2 space-y-4">
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center flex-wrap gap-3">
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-sm">Banco de Questões</h3>
+                    <p className="text-xs text-gray-400">{quiz.quiz_questions?.length || 0} perguntas ativas</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { setShowBulkForm(!showBulkForm); setShowQuestionForm(false); }} className="flex items-center gap-1.5 bg-blue-50 text-blue-600 border border-blue-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-100">
+                      <ListPlus className="w-4 h-4" /> Importação em Lote
+                    </button>
+                    <button onClick={() => { setShowQuestionForm(!showQuestionForm); setShowBulkForm(false); }} className="flex items-center gap-1.5 bg-cota-green text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-cota-green-light">
+                      <Plus className="w-4 h-4" /> Nova Pergunta
+                    </button>
+                  </div>
                 </div>
 
-                {showQuestionForm && (
-                  <div className="bg-white border-2 border-cota-gold/30 p-6 rounded-xl space-y-4">
-                    <input type="text" placeholder="Escreve a pergunta aqui..." value={qText} onChange={(e) => setQTitle(e.target.value)} className="w-full p-3 border rounded-lg font-medium outline-none focus:border-cota-gold" disabled={saving} />
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-gray-400 uppercase">Opções de Resposta</p>
-                      {options.map((opt, i) => (
-                        <div key={i} className="flex gap-2 items-center">
-                          <input type="radio" name="correct" checked={opt.is_correct} onChange={() => setOptions(options.map((o, idx) => ({ ...o, is_correct: idx === i })))} disabled={saving} />
-                          <input type="text" placeholder={`Opção ${i+1}`} value={opt.text} onChange={(e) => {
-                            const newOpts = [...options]; newOpts[i].text = e.target.value; setOptions(newOpts);
-                          }} className="flex-1 p-2 border rounded text-sm outline-none focus:border-cota-gold" disabled={saving} />
-                          {options.length > 2 && <button type="button" onClick={() => setOptions(options.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
-                        </div>
-                      ))}
-                      <button type="button" onClick={() => setOptions([...options, { text: "", is_correct: false }])} className="text-xs text-cota-green font-bold hover:underline">+ Adicionar Opção</button>
+                {showBulkForm && (
+                  <form onSubmit={handleBulkImport} className="bg-white rounded-xl border border-blue-200 p-5 shadow-sm space-y-4 relative">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                    <div>
+                      <h3 className="font-bold text-blue-800 text-sm mb-1">Importação Rápida</h3>
+                      <p className="text-xs text-gray-500">Cole o texto formatado. O sistema identificará automaticamente as perguntas e as respostas corretas [x].</p>
                     </div>
-                    <div className="flex gap-3 pt-2">
-                      <button type="button" onClick={handleAddQuestion} disabled={saving} className="bg-cota-green text-white px-6 py-2 rounded-lg font-bold text-sm disabled:opacity-50">{saving ? "A Salvar..." : "Salvar Pergunta"}</button>
-                      <button type="button" onClick={() => setShowQuestionForm(false)} className="text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
+                    <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={10} required className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-mono focus:border-blue-500 resize-none" />
+                    <div className="flex gap-2 justify-end border-t border-gray-100 pt-3">
+                      <button type="button" onClick={() => setShowBulkForm(false)} className="text-xs text-gray-500 px-3 py-2">Cancelar</button>
+                      <button type="submit" disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">{saving ? "Processando..." : "Importar Tudo Agora"}</button>
                     </div>
-                  </div>
+                  </form>
                 )}
 
-                <div className="space-y-4">
+                {showQuestionForm && (
+                  <form onSubmit={handleAddQuestionWithOptions} className="bg-white rounded-xl border border-cota-green/30 p-5 shadow-sm space-y-4 relative">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-cota-green"></div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Enunciado</label>
+                      <input type="text" value={questionText} onChange={(e) => setQuestionText(e.target.value)} required className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:border-cota-green" />
+                    </div>
+                    <div className="space-y-2.5 border-t border-gray-100 pt-4">
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Alternativas</label>
+                      <div className="flex items-center gap-3"><input type="radio" checked={correctOpt === "A"} onChange={() => setCorrectOpt("A")} name="correct_radio" className="w-4 h-4 accent-cota-green" /><input type="text" value={optA} onChange={(e) => setOptA(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
+                      <div className="flex items-center gap-3"><input type="radio" checked={correctOpt === "B"} onChange={() => setCorrectOpt("B")} name="correct_radio" className="w-4 h-4 accent-cota-green" /><input type="text" value={optB} onChange={(e) => setOptB(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
+                      <div className="flex items-center gap-3"><input type="radio" checked={correctOpt === "C"} onChange={() => setCorrectOpt("C")} name="correct_radio" className="w-4 h-4 accent-cota-green" /><input type="text" value={optC} onChange={(e) => setOptC(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
+                      <div className="flex items-center gap-3"><input type="radio" checked={correctOpt === "D"} onChange={() => setCorrectOpt("D")} name="correct_radio" className="w-4 h-4 accent-cota-green" /><input type="text" value={optD} onChange={(e) => setOptD(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
+                    </div>
+                    <div className="flex gap-2 justify-end border-t border-gray-100 pt-3">
+                      <button type="button" onClick={() => setShowQuestionForm(false)} className="text-xs text-gray-500 px-3 py-2">Cancelar</button>
+                      <button type="submit" disabled={saving} className="bg-cota-green text-white px-4 py-2 rounded-lg text-xs font-bold">Salvar</button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="space-y-3">
                   {quiz.quiz_questions?.map((q, idx) => (
-                    <div key={q.id} className="bg-gray-50 p-5 rounded-xl border border-gray-100 relative group">
-                      <button type="button" onClick={() => handleDeleteQuestion(q.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"><Trash2 className="w-4 h-4" /></button>
-                      <p className="font-bold text-gray-800 mb-3">{idx + 1}. {q.question}</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div key={q.id} className="bg-white p-4 rounded-xl border border-gray-100 relative group shadow-sm">
+                      <button type="button" onClick={() => handleDeleteQuestion(q.id)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      <p className="font-bold text-gray-800 text-sm pr-6 mb-3"><span className="text-cota-gold">{idx + 1}.</span> {q.question}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4">
                         {q.quiz_options?.map(opt => (
-                          <div key={opt.id} className={`text-xs p-2 rounded border ${opt.is_correct ? "bg-green-50 border-green-200 text-green-700 font-bold" : "bg-white border-gray-100 text-gray-500"}`}>
-                            {opt.text} {opt.is_correct && "✓"}
+                          <div key={opt.id} className={`text-xs p-2.5 rounded-lg border ${opt.is_correct ? "bg-green-50 border-green-200 text-green-700 font-bold" : "bg-gray-50 border-gray-100 text-gray-500"}`}>
+                            <span className="mr-1">{opt.is_correct ? "✓" : "•"}</span> {opt.text}
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
                 </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
