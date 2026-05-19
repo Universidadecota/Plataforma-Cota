@@ -180,8 +180,8 @@ export default function AISimulatorPage() {
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 min-w-0 overflow-hidden">
         {/* Painel Lateral - Escolha de Persona */}
-        <div className="w-full lg:w-80 flex flex-row lg:flex-col gap-4 flex-shrink-0 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto pb-2 lg:pb-0 lg:pr-2 custom-scrollbar">
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-2 min-w-[280px] lg:min-w-0">
+        <div className="w-full max-w-full lg:w-80 flex flex-row lg:flex-col gap-4 flex-shrink-0 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto pb-2 lg:pb-0 lg:pr-2 custom-scrollbar min-w-0">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-2 w-[calc(100vw-2rem)] max-w-[320px] lg:w-full lg:max-w-none flex-shrink-0 min-w-0">
             <p className="text-sm text-indigo-800 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <span>Escolha um perfil de cliente abaixo e treine a sua abordagem como se estivesse no WhatsApp.</span>
@@ -192,21 +192,21 @@ export default function AISimulatorPage() {
             <button
               key={p.id}
               onClick={() => setActivePersona(p)}
-              className={`text-left p-4 rounded-xl border transition-all min-w-[280px] lg:min-w-0 flex-shrink-0 ${
+              className={`text-left p-4 rounded-xl border transition-all w-[calc(100vw-2rem)] max-w-[320px] lg:w-full lg:max-w-none flex-shrink-0 min-w-0 ${
                 activePersona.id === p.id
                   ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
                   : "bg-white border-gray-200 hover:border-cota-green/50"
               }`}
             >
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-2 min-w-0">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
                   activePersona.id === p.id ? "bg-cota-green text-white" : "bg-gray-100 text-gray-600"
                 }`}>
                   {p.name.charAt(0)}
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm break-words">{p.name}</h3>
+                <h3 className="font-bold text-gray-800 text-sm leading-snug break-words min-w-0">{p.name}</h3>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
+              <p className="text-xs text-gray-500 leading-relaxed break-words min-w-0">{p.description}</p>
             </button>
           ))}
         </div>
