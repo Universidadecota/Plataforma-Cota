@@ -178,7 +178,8 @@ export default function AISimulatorPage() {
               <button
                 key={p.id}
                 onClick={() => setActivePersona(p)}
-                className={`text-left p-4 rounded-xl border transition-all w-64 lg:w-full flex-shrink-0 snap-start ${
+                // Ajuste feito aqui na largura: w-[calc(100vw-2.5rem)]
+                className={`text-left p-4 rounded-xl border transition-all w-[calc(100vw-2.5rem)] sm:w-80 lg:w-full flex-shrink-0 snap-start ${
                   activePersona.id === p.id
                     ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
                     : "bg-white border-gray-200 hover:border-cota-green/50"
