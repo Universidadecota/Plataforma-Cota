@@ -165,23 +165,23 @@ export default function AISimulatorPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col max-w-5xl mx-auto">
-      <div className="mb-6 flex-shrink-0">
-        <div className="flex items-center gap-3 mb-1">
+    <div className="h-[calc(100vh-100px)] flex flex-col w-full max-w-5xl mx-auto min-w-0 overflow-hidden">
+      <div className="mb-4 md:mb-6 flex-shrink-0 min-w-0">
+        <div className="flex items-center gap-3 mb-1 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-indigo-600" />
           </div>
-          <div>
-            <h1 className="page-header mb-0">Simulador com IA</h1>
+          <div className="min-w-0">
+            <h1 className="page-header mb-0 truncate">Simulador com IA</h1>
           </div>
         </div>
-        <p className="page-subtitle ml-13">Treine suas técnicas de vendas e quebra de objeções com clientes virtuais</p>
+        <p className="page-subtitle ml-0 sm:ml-13">Treine suas técnicas de vendas e quebra de objeções com clientes virtuais</p>
       </div>
 
-      <div className="flex gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0 min-w-0 overflow-hidden">
         {/* Painel Lateral - Escolha de Persona */}
-        <div className="w-80 flex flex-col gap-4 flex-shrink-0 overflow-y-auto pr-2 custom-scrollbar">
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-2">
+        <div className="w-full lg:w-80 flex flex-row lg:flex-col gap-4 flex-shrink-0 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto pb-2 lg:pb-0 lg:pr-2 custom-scrollbar">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-2 min-w-[280px] lg:min-w-0">
             <p className="text-sm text-indigo-800 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <span>Escolha um perfil de cliente abaixo e treine a sua abordagem como se estivesse no WhatsApp.</span>
@@ -192,7 +192,7 @@ export default function AISimulatorPage() {
             <button
               key={p.id}
               onClick={() => setActivePersona(p)}
-              className={`text-left p-4 rounded-xl border transition-all ${
+              className={`text-left p-4 rounded-xl border transition-all min-w-[280px] lg:min-w-0 flex-shrink-0 ${
                 activePersona.id === p.id
                   ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
                   : "bg-white border-gray-200 hover:border-cota-green/50"
@@ -204,7 +204,7 @@ export default function AISimulatorPage() {
                 }`}>
                   {p.name.charAt(0)}
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm">{p.name}</h3>
+                <h3 className="font-bold text-gray-800 text-sm break-words">{p.name}</h3>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed">{p.description}</p>
             </button>
@@ -212,29 +212,29 @@ export default function AISimulatorPage() {
         </div>
 
         {/* Janela do Chat */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
           {/* Header do Chat */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="px-4 md:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="font-bold text-gray-800 text-sm">Simulando conversa com: {activePersona.name}</span>
+              <span className="font-bold text-gray-800 text-sm truncate">Simulando conversa com: {activePersona.name}</span>
             </div>
-            <button onClick={resetChat} className="text-gray-400 hover:text-cota-green flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-cota-green/10 transition-colors">
+            <button onClick={resetChat} className="text-gray-400 hover:text-cota-green flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-cota-green/10 transition-colors flex-shrink-0">
               <RefreshCcw className="w-3.5 h-3.5" /> Reiniciar
             </button>
           </div>
 
           {/* Área de Mensagens */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png')] bg-opacity-5">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-[url('https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png')] bg-opacity-5">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-2xl p-4 flex gap-3 shadow-sm ${
+                <div className={`max-w-[88%] sm:max-w-[80%] min-w-0 rounded-2xl p-4 flex gap-3 shadow-sm ${
                   msg.role === "user" 
                     ? "bg-cota-green text-white rounded-tr-sm" 
                     : "bg-white border border-gray-100 text-gray-700 rounded-tl-sm"
                 }`}>
                   {msg.role === "assistant" && <Bot className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />}
-                  <p className="text-sm leading-relaxed">{msg.content}</p>
+                  <p className="text-sm leading-relaxed break-words min-w-0">{msg.content}</p>
                   {msg.role === "user" && <User className="w-5 h-5 text-white/70 flex-shrink-0 mt-0.5" />}
                 </div>
               </div>
@@ -256,19 +256,19 @@ export default function AISimulatorPage() {
 
           {/* Input Area */}
           <div className="p-4 bg-white border-t border-gray-100">
-            <form onSubmit={handleSendMessage} className="flex gap-3">
+            <form onSubmit={handleSendMessage} className="flex gap-3 min-w-0">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Digite a sua resposta como vendedor..."
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green focus:bg-white transition-all"
+                className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/30 focus:border-cota-green focus:bg-white transition-all"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="bg-cota-green text-white w-12 h-12 rounded-xl flex items-center justify-center hover:bg-cota-green-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-cota-green text-white w-12 h-12 rounded-xl flex items-center justify-center hover:bg-cota-green-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
                 <Send className="w-5 h-5 ml-1" />
               </button>

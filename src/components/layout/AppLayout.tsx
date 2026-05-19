@@ -7,7 +7,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden w-full relative">
+    <div className="flex h-screen bg-gray-50 overflow-hidden w-full max-w-full relative">
       {/* Mobile sidebar overlay (Fundo escuro ao abrir o menu) */}
       {sidebarOpen && (
         <div
@@ -28,12 +28,12 @@ export default function AppLayout() {
       </aside>
 
       {/* Main content (Área de Conteúdo) */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden max-w-full">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         
         {/* A trava 'overflow-x-hidden' impede que tabelas quebrem o ecrã inteiro para os lados */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
-          <div className="w-full max-w-7xl mx-auto pb-20 lg:pb-0">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
+          <div className="w-full max-w-7xl mx-auto pb-20 lg:pb-0 min-w-0">
             <Outlet />
           </div>
         </main>
