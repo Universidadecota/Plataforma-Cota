@@ -319,18 +319,20 @@ export default function CourseEditorPage() {
       setSaving(true);
       const nextOrder = (quiz.quiz_questions?.length || 0) + 1;
       
+      // CORREÇÃO AQUI: Removemos o 'return=representation' do 4º argumento
       const qRes = await directApiCall('quiz_questions', 'POST', {
         quiz_id: quiz.id, question: questionText, order_index: nextOrder
-      }, 'return=representation');
+      });
       const newQId = Array.isArray(qRes) ? qRes[0]?.id : qRes?.id;
 
       if (!newQId) throw new Error("ID não retornado");
 
+      // CORREÇÃO AQUI: Passamos 'undefined' como 4º argumento (query) e 'return=minimal' como 5º (cabeçalho)
       await Promise.all([
-        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optA, is_correct: correctOpt === "A", order_index: 1 }),
-        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optB, is_correct: correctOpt === "B", order_index: 2 }),
-        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optC, is_correct: correctOpt === "C", order_index: 3 }),
-        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optD, is_correct: correctOpt === "D", order_index: 4 }),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optA, is_correct: correctOpt === "A", order_index: 1 }, undefined, 'return=minimal'),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optB, is_correct: correctOpt === "B", order_index: 2 }, undefined, 'return=minimal'),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optC, is_correct: correctOpt === "C", order_index: 3 }, undefined, 'return=minimal'),
+        directApiCall('quiz_options', 'POST', { question_id: newQId, text: optD, is_correct: correctOpt === "D", order_index: 4 }, undefined, 'return=minimal'),
       ]);
 
       toast.success("Pergunta registrada!");
@@ -346,33 +348,32 @@ export default function CourseEditorPage() {
 
     try {
       setSaving(true);
-      const lines = bulkText.split('\n');
-      let currentQ: { question: string, options: { text: string, is_correct: boolean }[] } | null = null;
+      const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l !== '');
       const parsedQuestions: { question: string, options: { text: string, is_correct: boolean }[] }[] = [];
+      
+      let currentQ: any = null;
 
       for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
-
-        if (line.toLowerCase().includes('pergunta') && line.includes(':')) {
-          if (currentQ && currentQ.options.length > 0) parsedQuestions.push(currentQ);
-          const qText = line.split(':').slice(1).join(':').replace(/\*\*/g, '').trim();
-          currentQ = { question: qText, options: [] };
-        } 
-        else {
-          const optMatch = line.match(/^[-\*\•]?\s*\[\s*([xXvV]?)\s*\]\s*(.*)/);
-          if (optMatch && currentQ) {
-            const isCorrect = ['x', 'v'].includes(optMatch[1].toLowerCase());
-            const optText = optMatch[2].replace(/\*\*/g, '').trim();
+        // Se a linha começa com "- [", é uma opção
+        if (line.startsWith('- [')) {
+          if (currentQ) {
+            const isCorrect = line.includes('[x]') || line.includes('[X]');
+            const optText = line.replace(/-\s*\[[xX ]\]\s*/, '').replace(/\*\*/g, '').trim();
             currentQ.options.push({ text: optText, is_correct: isCorrect });
           }
+        } else {
+          // Ignora linhas que são só os comentários (---) ou Comentários:
+          if (line.startsWith('---') || line.startsWith('**Comentário')) continue;
+          
+          // Se não é opção, assumimos que é um novo enunciado
+          if (currentQ && currentQ.options.length > 0) parsedQuestions.push(currentQ);
+          currentQ = { question: line.replace(/###/g, '').replace(/##/g, '').replace(/Pergunta \d+/, '').replace(/^:/, '').trim(), options: [] };
         }
       }
-      
       if (currentQ && currentQ.options.length > 0) parsedQuestions.push(currentQ);
 
       if (parsedQuestions.length === 0) {
-        toast.error("Formato inválido. Não encontrei nenhuma pergunta.");
+        toast.error("Formato inválido. Tente colar apenas o texto das perguntas e alternativas.");
         setSaving(false); return;
       }
 
@@ -381,17 +382,20 @@ export default function CourseEditorPage() {
 
       for (const pq of parsedQuestions) {
         baseOrder++;
+        
+        // CORREÇÃO AQUI: API Post limpo sem o parâmetro errado na URL
         const qRes = await directApiCall('quiz_questions', 'POST', {
           quiz_id: quiz.id, question: pq.question, order_index: baseOrder
-        }, 'return=representation');
+        });
 
         const newQId = Array.isArray(qRes) ? qRes[0]?.id : qRes?.id;
-        if (!newQId) throw new Error(`Falha no ID da pergunta: ${pq.question.substring(0, 15)}...`);
+        if (!newQId) throw new Error(`Falha ao gerar ID para: ${pq.question.substring(0, 15)}...`);
 
-        const optsPromises = pq.options.map((opt, idx) => 
+        // CORREÇÃO AQUI: Passamos 'undefined' no 4º argumento
+        const optsPromises = pq.options.map((opt: any, idx: number) => 
           directApiCall('quiz_options', 'POST', {
             question_id: newQId, text: opt.text, is_correct: opt.is_correct, order_index: idx + 1
-          }, 'return=minimal')
+          }, undefined, 'return=minimal')
         );
         await Promise.all(optsPromises);
         successCount++;

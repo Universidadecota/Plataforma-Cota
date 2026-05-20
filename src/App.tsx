@@ -5,8 +5,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/authStore";
 
 import LoginPage from "@/pages/auth/LoginPage";
+import PartnerRegister from "@/pages/auth/PartnerRegister";
 import AppLayout from "@/components/layout/AppLayout";
 import DashboardPage from "@/pages/student/DashboardPage";
+import PartnerDashboard from "@/pages/partner/PartnerDashboard";
 import CourseCatalogPage from "@/pages/student/CourseCatalogPage";
 import CoursePage from "@/pages/student/CoursePage";
 import LessonPage from "@/pages/student/LessonPage";
@@ -24,8 +26,6 @@ import CourseEditorPage from "@/pages/admin/CourseEditorPage";
 import NotFound from "@/pages/NotFound";
 import CRMPage from "@/pages/crm/CRMPage";
 import AISimulatorPage from "@/pages/student/AISimulatorPage";
-import PartnerDashboard from "@/pages/partner/PartnerDashboard";
-import PartnerRegister from "@/pages/auth/PartnerRegister";
 
 function LoadingScreen() {
   return (
@@ -58,7 +58,22 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Seletor Inteligente para a rota raiz "/"
+function IndexRouteSelector() {
+  const { user } = useAuthStore();
+
+  // Parceiro aprovado cai direto no portal de envio de leads
+  if (user?.role === "partner") {
+    return <PartnerDashboard />;
+  }
+  // Alunos, Admins, Gestores e Parceiros Pendentes usam o Dashboard base
+  return <DashboardPage />;
+}
+
 export default function App() {
+  // Lista de cargos que possuem acesso ao conteúdo educacional/estágios de aluno
+  const studentCoreRoles = ["admin", "manager", "instructor", "student", "consultant"];
+
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Toaster richColors position="top-right" />
@@ -74,20 +89,77 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<DashboardPage />} />
-            <Route path="catalog" element={<CourseCatalogPage />} />
-            <Route path="courses/:id" element={<CoursePage />} />
-            <Route path="lessons/:id" element={<LessonPage />} />
-            <Route path="materials" element={<MaterialsPage />} />
-            <Route path="scripts" element={<WhatsAppScriptsPage />} />
-            <Route path="objections" element={<ObjectionsPage />} />
-            <Route path="quizzes" element={<QuizzesPage />} />
-            <Route path="certificates" element={<CertificatesPage />} />
-            <Route path="ranking" element={<RankingPage />} />
-            <Route path="announcements" element={<AnnouncementsPage />} />
-            <Route path="mentoring" element={<MentoringPage />} />
-            <Route path="crm" element={<CRMPage />} />
-            <Route path="simulator" element={<AISimulatorPage />} />
+            {/* Rota Raiz Dinâmica baseada no Perfil */}
+            <Route index element={<IndexRouteSelector />} />
+            
+            {/* Rotas Educacionais Protegidas contra Parceiros Comerciais */}
+            <Route path="catalog" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <CourseCatalogPage />
+              </ProtectedRoute>
+            } />
+            <Route path="courses/:id" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <CoursePage />
+              </ProtectedRoute>
+            } />
+            <Route path="lessons/:id" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <LessonPage />
+              </ProtectedRoute>
+            } />
+            <Route path="materials" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <MaterialsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="scripts" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <WhatsAppScriptsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="objections" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <ObjectionsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="quizzes" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <QuizzesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="certificates" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <CertificatesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="ranking" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <RankingPage />
+              </ProtectedRoute>
+            } />
+            <Route path="announcements" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <AnnouncementsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="mentoring" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <MentoringPage />
+              </ProtectedRoute>
+            } />
+            <Route path="simulator" element={
+              <ProtectedRoute allowedRoles={studentCoreRoles}>
+                <AISimulatorPage />
+              </ProtectedRoute>
+            } />
+
+            {/* Gestão interna de leads e CRM corporativo */}
+            <Route path="crm" element={
+              <ProtectedRoute allowedRoles={["admin", "manager", "instructor"]}>
+                <CRMPage />
+              </ProtectedRoute>
+            } />
             <Route
               path="manager"
               element={
@@ -104,7 +176,13 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            {/* Nova Rota Administrativa para Edição de Trilhas */}
+            
+            <Route path="crm" element={
+              <ProtectedRoute allowedRoles={["admin", "manager", "consultant"]}>
+                <CRMPage />
+              </ProtectedRoute>
+            } />
+            
             <Route
               path="admin/courses/:id"
               element={
@@ -120,12 +198,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
-<Route
-  path="partner"
-  element={
-    <ProtectedRoute allowedRoles={["admin", "partner"]}>
-      <PartnerDashboard />
-    </ProtectedRoute>
-  }
-/>

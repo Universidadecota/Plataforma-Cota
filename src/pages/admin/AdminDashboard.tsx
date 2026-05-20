@@ -425,7 +425,8 @@ export default function AdminDashboard() {
                             onChange={(e) => updateUserRole(u.id, e.target.value)}
                             className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-cota-green/30"
                           >
-                            <option value="student">Aluno</option>
+                            <option value="student">Aluno (Apenas Aulas)</option>
+                            <option value="consultant">Consultor (Vendedor)</option>
                             <option value="pending_partner">⏳ Aguardando Aprovação</option>
                             <option value="partner">Parceiro (Aprovado)</option>
                             <option value="instructor">Instrutor</option>
