@@ -44,7 +44,23 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const { signOut } = useAuth();
 
   const handleSignOut = async () => {
-    await signOut();
+    try {
+      // 1. Tenta deslogar pelo Supabase (opcional, mas boa prática)
+      await signOut();
+    } catch (e) {
+      console.warn("Logout suave falhou, forçando limpeza local...");
+    } finally {
+      // 2. LIMPEZA NUCLEAR: Remove tudo relacionado ao Supabase do localStorage
+      // Isso resolve o problema de ficar preso na tela de "Carregando..."
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("sb-")) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // 3. Força o recarregamento da página para o estado inicial
+      window.location.replace("/login");
+    }
   };
 
   return (

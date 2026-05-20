@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Award, Trophy, Star, ChevronRight, TrendingUp, Bell, Play } from "lucide-react";
+import { BookOpen, Award, Trophy, Star, ChevronRight, TrendingUp, Bell, Play, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_IMAGES, DEFAULT_COURSE_IMAGE, LEVEL_LABELS } from "@/constants";
 import { formatDate } from "@/lib/utils";
@@ -148,8 +148,22 @@ export default function DashboardPage() {
     );
   }
 
+  if (user?.role === 'pending_partner') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center px-4 w-full">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+          <Clock className="w-8 h-8 text-amber-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Conta em Análise</h1>
+        <p className="text-gray-500 max-w-md mx-auto">
+          Recebemos o seu cadastro! O seu perfil de parceiro comercial está passando por análise pelo nosso time de gestão. 
+          Você receberá um aviso assim que o acesso à sua infraestrutura de envios for liberado.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    // Adicionado pb-6 e garantido que max-w-full previne estouro lateral
     <div className="w-full max-w-full overflow-x-hidden pb-6 min-w-0">
       {/* Welcome header */}
       <div className="mb-6 min-w-0">

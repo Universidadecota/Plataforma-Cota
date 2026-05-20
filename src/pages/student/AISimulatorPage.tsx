@@ -178,7 +178,6 @@ export default function AISimulatorPage() {
               <button
                 key={p.id}
                 onClick={() => setActivePersona(p)}
-                // Ajuste feito aqui na largura: w-[calc(100vw-2.5rem)]
                 className={`text-left p-4 rounded-xl border transition-all w-[calc(100vw-2.5rem)] sm:w-80 lg:w-full flex-shrink-0 snap-start ${
                   activePersona.id === p.id
                     ? "bg-white border-cota-green shadow-md ring-1 ring-cota-green"
@@ -186,14 +185,17 @@ export default function AISimulatorPage() {
                 }`}
               >
                 <div className="flex items-center gap-3 mb-2 min-w-0">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                  {/* Avatar aumentado: de w-8 h-8 para w-10 h-10, e fonte text-base */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base flex-shrink-0 ${
                     activePersona.id === p.id ? "bg-cota-green text-white" : "bg-gray-100 text-gray-600"
                   }`}>
                     {p.name.charAt(0)}
                   </div>
-                  <h3 className="font-bold text-gray-800 text-sm leading-snug truncate">{p.name}</h3>
+                  {/* Título aumentado: de text-sm para text-base */}
+                  <h3 className="font-bold text-gray-800 text-base leading-snug truncate">{p.name}</h3>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{p.description}</p>
+                {/* Descrição aumentada: de text-xs para text-sm */}
+                <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">{p.description}</p>
               </button>
             ))}
           </div>

@@ -24,6 +24,8 @@ import CourseEditorPage from "@/pages/admin/CourseEditorPage";
 import NotFound from "@/pages/NotFound";
 import CRMPage from "@/pages/crm/CRMPage";
 import AISimulatorPage from "@/pages/student/AISimulatorPage";
+import PartnerDashboard from "@/pages/partner/PartnerDashboard";
+import PartnerRegister from "@/pages/auth/PartnerRegister";
 
 function LoadingScreen() {
   return (
@@ -62,6 +64,7 @@ export default function App() {
       <Toaster richColors position="top-right" />
       <AuthInitializer>
         <Routes>
+          <Route path="/seja-parceiro" element={<PartnerRegister />} />
           <Route path="/login" element={<LoginPage />} />
           <Route
             path="/"
@@ -117,3 +120,12 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
+<Route
+  path="partner"
+  element={
+    <ProtectedRoute allowedRoles={["admin", "partner"]}>
+      <PartnerDashboard />
+    </ProtectedRoute>
+  }
+/>

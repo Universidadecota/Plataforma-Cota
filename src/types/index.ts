@@ -1,4 +1,4 @@
-export type Role = "admin" | "manager" | "instructor" | "student";
+export type Role = "student" | "instructor" | "manager" | "admin" | "partner" | "pending_partner";
 export type Level = "beginner" | "intermediate" | "advanced";
 export type Priority = "low" | "normal" | "high" | "urgent";
 export type LeadStatus = 'novo' | 'contatado' | 'simulacao_enviada' | 'negociacao' | 'ganho' | 'perdido';
