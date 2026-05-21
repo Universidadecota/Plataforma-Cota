@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
-import { Users, Send, Activity, Clock, ShieldCheck, Mail, HelpCircle, MessageSquare, Edit2, X, Check, Filter } from "lucide-react";
+import { Users, Send, Activity, Clock, ShieldCheck, Mail, HelpCircle, MessageSquare, Edit2, X, Check, Filter, Wallet, TrendingUp, CheckCircle2 } from "lucide-react";
 
 type Lead = {
   id: string;
@@ -12,6 +12,10 @@ type Lead = {
   observacoes: string;
   status: string;
   criado_em: string;
+  // NOVOS CAMPOS PARA A WALLET
+  valor_carta?: number;
+  comissao_parceiro?: number;
+  status_pagamento?: string;
 };
 
 export default function PartnerDashboard() {
@@ -25,7 +29,6 @@ export default function PartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // NOVO: Estado para controlar o filtro da tabela
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   // Estados para Edição na Tabela
@@ -111,13 +114,12 @@ export default function PartnerDashboard() {
         origem: "Parceiro",
         status: "Novo"
       });
-      toast.success("Lead cadastrado com sucesso! 🚀");
+      toast.success("Lead cadastrado com sucesso na EPSA! 🚀");
       setNomeLead(""); 
       setTelefoneLead("");
       setEmailLead("");
       setMotivoLead("Recusado pelo banco");
       setObservacoesLead("");
-      // Limpa o filtro para mostrar o novo lead recém cadastrado
       setStatusFilter(null);
       await loadLeads();
     } catch (err) {
@@ -168,7 +170,23 @@ export default function PartnerDashboard() {
     }
   };
 
-  // Aplica o filtro na lista de leads antes de renderizar a tabela
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
+  // CALCULADORA DA WALLET EPSA
+  const valorEmNegociacao = leads
+    .filter(l => ['Em atendimento', 'Proposta'].includes(l.status))
+    .reduce((acc, l) => acc + (l.comissao_parceiro || 0), 0);
+
+  const valorProjetado = leads
+    .filter(l => l.status === 'Fechado' && l.status_pagamento === 'Pendente')
+    .reduce((acc, l) => acc + (l.comissao_parceiro || 0), 0);
+
+  const valorLiberado = leads
+    .filter(l => l.status === 'Fechado' && l.status_pagamento === 'Liberado')
+    .reduce((acc, l) => acc + (l.comissao_parceiro || 0), 0);
+
   const filteredLeads = statusFilter 
     ? leads.filter(l => l.status?.toLowerCase() === statusFilter.toLowerCase())
     : leads;
@@ -182,12 +200,37 @@ export default function PartnerDashboard() {
           <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-lg sm:text-2xl font-bold text-gray-800 truncate">Portal do Parceiro</h1>
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-800 truncate">Portal do Parceiro EPSA</h1>
           <p className="text-xs sm:text-sm text-gray-500 truncate">Gerencie seus leads e acompanhe as conversões em tempo real</p>
         </div>
       </div>
 
-      {/* Estatísticas Rápidas (AGORA SÃO BOTÕES CLICÁVEIS DE FILTRO) */}
+      {/* WALLET / PAINEL DE COMISSÕES EPSA */}
+      <div className="bg-gradient-to-br from-[#0a1a15] to-[#16382e] rounded-2xl shadow-lg border border-[#b8995a]/20 mb-8 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#b8995a]/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        <div className="p-6 sm:p-8 relative z-10">
+          <div className="flex items-center gap-2 mb-6">
+            <Wallet className="w-5 h-5 text-[#b8995a]" />
+            <h2 className="text-lg font-bold text-white tracking-wide">Minha Carteira EPSA</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-[#b8995a]/20">
+            <div className="pt-4 md:pt-0 md:pr-6 flex flex-col justify-center">
+              <p className="text-sm font-medium text-gray-400 mb-1 flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-amber-400" /> Em Negociação</p>
+              <h3 className="text-3xl font-black text-white">{formatCurrency(valorEmNegociacao)}</h3>
+            </div>
+            <div className="pt-6 md:pt-0 md:px-6 flex flex-col justify-center">
+              <p className="text-sm font-medium text-gray-400 mb-1 flex items-center gap-1.5"><Clock className="w-4 h-4 text-blue-400" /> Projetado (A Receber)</p>
+              <h3 className="text-3xl font-black text-white">{formatCurrency(valorProjetado)}</h3>
+            </div>
+            <div className="pt-6 md:pt-0 md:pl-6 flex flex-col justify-center">
+              <p className="text-sm font-medium text-gray-400 mb-1 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#b8995a]" /> Saldo Liberado</p>
+              <h3 className="text-3xl font-black text-[#b8995a]">{formatCurrency(valorLiberado)}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Estatísticas / Filtros Originais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <button 
           onClick={() => setStatusFilter(null)}
@@ -212,9 +255,7 @@ export default function PartnerDashboard() {
             <p className="text-xs text-gray-500 font-medium">Em Atendimento</p>
             <Activity className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">
-            {leads.filter(l => l.status === 'Em atendimento').length}
-          </p>
+          <p className="text-2xl font-bold text-gray-800">{leads.filter(l => l.status === 'Em atendimento').length}</p>
         </button>
 
         <button 
@@ -227,9 +268,7 @@ export default function PartnerDashboard() {
             <p className="text-xs text-gray-500 font-medium">Propostas</p>
             <Clock className="w-4 h-4 text-purple-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">
-            {leads.filter(l => l.status === 'Proposta').length}
-          </p>
+          <p className="text-2xl font-bold text-gray-800">{leads.filter(l => l.status === 'Proposta').length}</p>
         </button>
 
         <button 
@@ -242,68 +281,35 @@ export default function PartnerDashboard() {
             <p className="text-xs text-gray-500 font-medium">Fechados</p>
             <ShieldCheck className="w-4 h-4 text-cota-green" />
           </div>
-          <p className="text-2xl font-bold text-cota-green">
-            {leads.filter(l => l.status === 'Fechado').length}
-          </p>
+          <p className="text-2xl font-bold text-cota-green">{leads.filter(l => l.status === 'Fechado').length}</p>
         </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 items-start">
         
-        {/* Formulário de Cadastro de Novo Lead */}
+        {/* Formulário Original */}
         <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-2">
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-            <h2 className="font-bold text-gray-800 text-sm">Enviar Novo Lead</h2>
+            <h2 className="font-bold text-gray-800 text-sm">Enviar Novo Lead para EPSA</h2>
             <p className="text-xs text-gray-500 mt-0.5">Cadastre o cliente informando o contexto do encaminhamento</p>
           </div>
           <form onSubmit={handleAddLead} className="p-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
               <div>
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">Nome do Cliente *</label>
-                <input 
-                  type="text" 
-                  value={nomeLead} 
-                  onChange={(e) => setNomeLead(e.target.value)}
-                  placeholder="Ex: João da Silva" 
-                  required
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" 
-                />
+                <input type="text" value={nomeLead} onChange={(e) => setNomeLead(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
               </div>
-              
               <div>
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">WhatsApp / Telefone *</label>
-                <input 
-                  type="text" 
-                  value={telefoneLead} 
-                  onChange={(e) => setTelefoneLead(e.target.value)}
-                  placeholder="(21) 99999-9999" 
-                  required
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" 
-                />
+                <input type="text" value={telefoneLead} onChange={(e) => setTelefoneLead(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
               </div>
-
               <div>
-                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">
-                  <Mail className="w-3 h-3"/> E-mail do Cliente
-                </label>
-                <input 
-                  type="email" 
-                  value={emailLead} 
-                  onChange={(e) => setEmailLead(e.target.value)}
-                  placeholder="joao@email.com (Opcional)" 
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" 
-                />
+                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><Mail className="w-3 h-3"/> E-mail do Cliente</label>
+                <input type="email" value={emailLead} onChange={(e) => setEmailLead(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
               </div>
-
               <div>
-                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">
-                  <HelpCircle className="w-3 h-3"/> Motivo do Encaminhamento *
-                </label>
-                <select 
-                  value={motivoLead} 
-                  onChange={(e) => setMotivoLead(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white"
-                >
+                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><HelpCircle className="w-3 h-3"/> Motivo do Encaminhamento *</label>
+                <select value={motivoLead} onChange={(e) => setMotivoLead(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white">
                   <option value="Recusado pelo banco">Recusado pelo banco / Financiamento negado</option>
                   <option value="Não se enquadra no perfil da construtora">Não se enquadra no perfil do empreendimento</option>
                   <option value="Falta de recursos para entrada">Falta de recursos para entrada</option>
@@ -311,69 +317,38 @@ export default function PartnerDashboard() {
                   <option value="Outros motivos">Outros motivos</option>
                 </select>
               </div>
-
               <div className="md:col-span-2">
-                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">
-                  <MessageSquare className="w-3 h-3"/> Observações Adicionais (Máx 100 caracteres)
-                </label>
-                <textarea 
-                  value={observacoesLead} 
-                  onChange={(e) => setObservacoesLead(e.target.value)}
-                  maxLength={100}
-                  rows={2}
-                  placeholder="Justifique a opção 'Outros motivos' ou adicione detalhes importantes do cliente..." 
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 resize-none" 
-                />
-                <div className="flex justify-end mt-1">
-                  <span className={`text-[10px] font-medium ${observacoesLead.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>
-                    {observacoesLead.length} / 100
-                  </span>
-                </div>
+                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><MessageSquare className="w-3 h-3"/> Observações Adicionais</label>
+                <textarea value={observacoesLead} onChange={(e) => setObservacoesLead(e.target.value)} maxLength={100} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 resize-none" />
+                <div className="flex justify-end mt-1"><span className={`text-[10px] font-medium ${observacoesLead.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>{observacoesLead.length} / 100</span></div>
               </div>
             </div>
-
-            <button 
-              type="submit" 
-              disabled={saving}
-              className="w-full md:w-auto md:px-8 ml-auto flex items-center justify-center gap-2 bg-cota-green text-white py-2.5 rounded-lg text-sm font-bold hover:bg-cota-green-light transition-colors disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" />
-              {saving ? "Enviando..." : "Enviar Lead para a Base"}
+            <button type="submit" disabled={saving} className="w-full md:w-auto md:px-8 ml-auto flex items-center justify-center gap-2 bg-cota-green text-white py-2.5 rounded-lg text-sm font-bold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+              <Send className="w-4 h-4" />{saving ? "Enviando..." : "Enviar Lead para EPSA"}
             </button>
           </form>
         </div>
 
-        {/* Tabela de Acompanhamento */}
+        {/* Tabela Original com a Nova Coluna */}
         <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
             <div>
-              <h2 className="font-bold text-gray-800 text-sm">
-                {statusFilter ? `Leads: ${statusFilter}` : "Todos os Leads Enviados"}
-              </h2>
+              <h2 className="font-bold text-gray-800 text-sm">{statusFilter ? `Leads: ${statusFilter}` : "Todos os Leads Enviados"}</h2>
               <p className="text-xs text-gray-500 mt-0.5">Rastreabilidade em tempo real</p>
             </div>
-            {/* Botão sutil para limpar o filtro se houver um ativo */}
             {statusFilter && (
-              <button 
-                onClick={() => setStatusFilter(null)}
-                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors"
-              >
-                <Filter className="w-3 h-3" />
-                Limpar Filtro
+              <button onClick={() => setStatusFilter(null)} className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors">
+                <Filter className="w-3 h-3" /> Limpar Filtro
               </button>
             )}
           </div>
           
           {loading ? (
-             <div className="flex items-center justify-center py-12">
-               <div className="w-6 h-6 border-2 border-cota-green border-t-transparent rounded-full animate-spin" />
-             </div>
+             <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-cota-green border-t-transparent rounded-full animate-spin" /></div>
           ) : filteredLeads.length === 0 ? (
             <div className="p-8 text-center">
               <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-600">
-                {statusFilter ? `Nenhum lead com status "${statusFilter}".` : "Nenhum lead enviado ainda."}
-              </p>
+              <p className="text-sm font-medium text-gray-600">{statusFilter ? `Nenhum lead com status "${statusFilter}".` : "Nenhum lead enviado ainda."}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -384,6 +359,7 @@ export default function PartnerDashboard() {
                     <th className="px-5 py-3 font-semibold">Motivo & Observações</th>
                     <th className="px-5 py-3 font-semibold text-center">Status Atual</th>
                     <th className="px-5 py-3 font-semibold text-center">Ações</th>
+                    <th className="px-5 py-3 font-semibold text-right">Comissão Projetada</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 text-sm">
@@ -399,74 +375,56 @@ export default function PartnerDashboard() {
                       <td className="px-5 py-3 align-top min-w-[280px]">
                         {editingId === lead.id ? (
                           <div className="space-y-2">
-                            <select 
-                              value={editMotivo} 
-                              onChange={(e) => setEditMotivo(e.target.value)}
-                              className="w-full px-2 py-1.5 border border-cota-green/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-cota-green bg-white"
-                            >
+                            <select value={editMotivo} onChange={(e) => setEditMotivo(e.target.value)} className="w-full px-2 py-1.5 border border-cota-green/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-cota-green bg-white">
                               <option value="Recusado pelo banco">Recusado pelo banco / Financiamento negado</option>
                               <option value="Não se enquadra no perfil da construtora">Não se enquadra no perfil do empreendimento</option>
                               <option value="Falta de recursos para entrada">Falta de recursos para entrada</option>
                               <option value="Prefere consórcio / Planejamento">Prefere consórcio / Foge de juros</option>
                               <option value="Outros motivos">Outros motivos</option>
                             </select>
-                            <textarea 
-                              value={editObservacoes} 
-                              onChange={(e) => setEditObservacoes(e.target.value)}
-                              maxLength={100}
-                              rows={2}
-                              placeholder="Observações..."
-                              className="w-full px-2 py-1.5 border border-cota-green/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-cota-green resize-none"
-                            />
+                            <textarea value={editObservacoes} onChange={(e) => setEditObservacoes(e.target.value)} maxLength={100} rows={2} className="w-full px-2 py-1.5 border border-cota-green/50 rounded text-xs focus:outline-none focus:ring-1 focus:ring-cota-green resize-none" />
                           </div>
                         ) : (
                           <div>
                             <p className="text-gray-600 text-xs font-semibold">{lead.motivo || "Não informado"}</p>
-                            {lead.observacoes && (
-                              <p className="text-[11px] text-gray-500 mt-1 italic leading-tight">
-                                "{lead.observacoes}"
-                              </p>
-                            )}
+                            {lead.observacoes && <p className="text-[11px] text-gray-500 mt-1 italic leading-tight">"{lead.observacoes}"</p>}
                           </div>
                         )}
                       </td>
 
                       <td className="px-5 py-3 text-center align-top whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${getStatusColor(lead.status)}`}>
-                          {lead.status || 'Novo'}
-                        </span>
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${getStatusColor(lead.status)}`}>{lead.status || 'Novo'}</span>
                       </td>
 
                       <td className="px-5 py-3 text-center align-top whitespace-nowrap">
                         {editingId === lead.id ? (
                           <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleSaveEdit(lead.id)}
-                              disabled={savingEdit}
-                              className="p-1.5 bg-cota-green text-white rounded hover:bg-cota-green-light transition-colors disabled:opacity-50"
-                              title="Salvar"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={cancelEditing}
-                              disabled={savingEdit}
-                              className="p-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors disabled:opacity-50"
-                              title="Cancelar"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
+                            <button onClick={() => handleSaveEdit(lead.id)} disabled={savingEdit} className="p-1.5 bg-cota-green text-white rounded hover:bg-cota-green-light transition-colors"><Check className="w-4 h-4" /></button>
+                            <button onClick={cancelEditing} disabled={savingEdit} className="p-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"><X className="w-4 h-4" /></button>
                           </div>
                         ) : (
-                          <button 
-                            onClick={() => startEditing(lead)}
-                            className="p-1.5 text-gray-400 hover:text-cota-green hover:bg-cota-green/10 rounded transition-colors"
-                            title="Editar motivo e observações"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                          <button onClick={() => startEditing(lead)} className="p-1.5 text-gray-400 hover:text-cota-green hover:bg-cota-green/10 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
                         )}
                       </td>
+
+                      {/* NOVA COLUNA FINANCEIRA DA TABELA */}
+                      <td className="px-5 py-3 text-right align-top whitespace-nowrap">
+                        {lead.comissao_parceiro && lead.comissao_parceiro > 0 ? (
+                          <div>
+                            <p className="font-bold text-[#b8995a]">{formatCurrency(lead.comissao_parceiro)}</p>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                              lead.status_pagamento === 'Liberado' ? 'bg-green-100 text-green-700' :
+                              lead.status_pagamento === 'Pago' ? 'bg-gray-100 text-gray-500' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {lead.status_pagamento || 'Pendente'}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 font-medium italic">Aguardando EPSA</p>
+                        )}
+                      </td>
+
                     </tr>
                   ))}
                 </tbody>

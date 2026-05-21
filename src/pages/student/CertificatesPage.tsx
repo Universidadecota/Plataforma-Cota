@@ -109,14 +109,14 @@ export default function CertificatesPage() {
       <body>
         <div class="certificate">
           <div class="logo">UNIVERSIDADE</div>
-          <div class="brand">C.O.T.A.</div>
+          <div class="brand">EPSA</div>
           <div class="certifies">Certifica que</div>
           <div class="name">${user?.full_name || user?.username}</div>
           <div class="completed">concluiu com êxito a trilha de formação</div>
           <div class="course">${cert.courses.title}</div>
           <div class="footer">
             <span>Emitido em: ${formatDate(cert.issued_at)}</span>
-            <span class="gold">Universidade C.O.T.A. · Formação em Consórcio</span>
+            <span class="gold">Universidade EPSA · Formação em Consórcio</span>
             <span>Nº ${cert.certificate_number}</span>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function CertificatesPage() {
                 <p className="text-white/60 text-xs font-medium tracking-widest uppercase relative z-10">
                   Universidade
                 </p>
-                <p className="text-cota-gold font-black text-3xl tracking-widest relative z-10">C.O.T.A.</p>
+                <p className="text-cota-gold font-black text-3xl tracking-widest relative z-10">EPSA</p>
                 <div className="w-16 h-px bg-cota-gold/40 mx-auto my-3 relative z-10" />
                 <Award className="w-10 h-10 text-cota-gold mx-auto relative z-10" />
               </div>

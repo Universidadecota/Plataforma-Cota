@@ -82,7 +82,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       case 'instructor': return 'Instrutor';
       case 'partner': return 'Parceiro Comercial';
       case 'pending_partner': return 'Parceiro (Em Análise)';
-      case 'consultant': return 'Consultor'; // <--- NOVA LINHA AQUI
+      case 'consultant': return 'Consultor';
       case 'student': return 'Aluno';
       default: return 'Aluno';
     }
@@ -96,7 +96,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
             <GraduationCap className="w-6 h-6 text-[#0D211A]" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-black text-white tracking-wider truncate">C.O.T.A.</h1>
+            <h1 className="text-xl font-black text-white tracking-wider truncate">EPSA</h1>
             <p className="text-[10px] text-cota-gold uppercase tracking-widest font-bold">Universidade</p>
           </div>
         </div>
@@ -133,6 +133,30 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </NavLink>
         ))}
 
+        {/* MENU DO CONSULTOR EPSA */}
+        {user?.role === "consultant" && (
+          <>
+            <div className="h-px bg-white/5 my-6 mx-2" />
+            <p className="px-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">Operacional EPSA</p>
+            <NavLink
+              to="/consultant"
+              onClick={onClose}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                  isActive
+                    ? "bg-cota-gold/20 text-cota-gold border border-cota-gold/30 shadow-md"
+                    : "text-gray-400 hover:bg-white/5 hover:text-cota-gold"
+                )
+              }
+            >
+              <MessageCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="truncate">Mesa de Batalha</span>
+            </NavLink>
+          </>
+        )}
+
+        {/* MENU DE GESTÃO E ADMINISTRAÇÃO */}
         {(user?.role === "admin" || user?.role === "manager") && (
           <>
             <div className="h-px bg-white/5 my-6 mx-2" />
@@ -171,7 +195,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
               {user?.full_name || user?.username}
             </p>
             <p className="text-cota-green text-xs font-medium uppercase tracking-wider truncate">
-              {/* O cargo sempre aparecerá aqui de forma confiável */}
               {getDisplayRole(user?.role)}
             </p>
           </div>

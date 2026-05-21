@@ -9,7 +9,7 @@ export default function NotFound() {
           <div className="w-12 h-12 rounded-xl bg-cota-gold flex items-center justify-center">
             <GraduationCap className="w-7 h-7 text-cota-green-dark" />
           </div>
-          <p className="text-cota-gold font-black text-2xl tracking-widest">C.O.T.A.</p>
+          <p className="text-cota-gold font-black text-2xl tracking-widest">EPSA</p>
         </div>
 
         <h1 className="text-8xl font-black text-cota-gold mb-4">404</h1>

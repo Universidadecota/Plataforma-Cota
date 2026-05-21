@@ -172,7 +172,7 @@ export default function DashboardPage() {
           <span className="text-cota-gold">{user?.full_name?.split(" ")[0] || user?.username}!</span>
         </h1>
         <p className="text-gray-500 text-sm mt-1 break-words">
-          Bem-vindo de volta à Universidade C.O.T.A. Continue sua jornada de aprendizado.
+          Bem-vindo de volta à Universidade EPSA. Continue sua jornada de aprendizado.
         </p>
       </div>
 

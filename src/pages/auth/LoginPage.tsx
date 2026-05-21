@@ -68,7 +68,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await verifyOtpAndRegister(email, otp, password, fullName);
-      toast.success("Conta criada! Bem-vindo(a) à Universidade C.O.T.A.!");
+      toast.success("Conta criada! Bem-vindo(a) à Universidade EPSA!");
       navigate("/");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar conta.");
@@ -94,7 +94,7 @@ export default function LoginPage() {
           </div>
           <div>
             <p className="text-white/80 text-sm font-medium">Universidade</p>
-            <p className="text-cota-gold font-black text-2xl tracking-widest">C.O.T.A.</p>
+            <p className="text-cota-gold font-black text-2xl tracking-widest">EPSA</p>
           </div>
         </div>
 
@@ -125,7 +125,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-white/30 text-sm relative z-10">
-          © {new Date().getFullYear()} Universidade C.O.T.A. Todos os direitos reservados.
+          © {new Date().getFullYear()} Universidade EPSA Todos os direitos reservados.
         </p>
       </div>
 
@@ -139,7 +139,7 @@ export default function LoginPage() {
             </div>
             <div>
               <p className="text-cota-green text-xs font-medium">Universidade</p>
-              <p className="text-cota-green font-black text-xl tracking-widest">C.O.T.A.</p>
+              <p className="text-cota-green font-black text-xl tracking-widest">EPSA</p>
             </div>
           </div>
 

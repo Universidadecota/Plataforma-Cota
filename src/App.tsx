@@ -26,13 +26,14 @@ import CourseEditorPage from "@/pages/admin/CourseEditorPage";
 import NotFound from "@/pages/NotFound";
 import CRMPage from "@/pages/crm/CRMPage";
 import AISimulatorPage from "@/pages/student/AISimulatorPage";
+import ConsultantDashboard from "./pages/consultant/ConsultantDashboard";
 
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-cota-green-dark">
       <div className="text-center">
         <div className="w-12 h-12 border-4 border-cota-gold border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/70 text-sm">Carregando Universidade C.O.T.A...</p>
+        <p className="text-white/70 text-sm">Carregando Universidade EPSA...</p>
       </div>
     </div>
   );
@@ -176,7 +177,15 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            
+            {/* Rota do Consultor (Mesa de Batalha) */}
+            <Route 
+              path="consultant" 
+              element={
+                <ProtectedRoute allowedRoles={["admin", "manager", "consultant"]}>
+                  <ConsultantDashboard />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="crm" element={
               <ProtectedRoute allowedRoles={["admin", "manager", "consultant"]}>
                 <CRMPage />

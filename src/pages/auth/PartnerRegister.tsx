@@ -110,7 +110,7 @@ export default function PartnerRegister() {
           <div className="w-9 h-9 rounded-lg bg-cota-gold flex items-center justify-center shadow-md">
             <ShieldCheck className="w-5 h-5 text-cota-green-dark" />
           </div>
-          <span className="font-black tracking-wider text-sm uppercase text-cota-gold">Universidade C.O.T.A.</span>
+          <span className="font-black tracking-wider text-sm uppercase text-cota-gold">Universidade EPSA</span>
         </div>
 
         <div className="relative z-10 max-w-md space-y-6">
