@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
-import { Search, MessageCircle, Clock, ShieldCheck, Copy, Sparkles, AlertCircle, ChevronRight, X, User } from "lucide-react";
+import { Search, MessageCircle, Clock, Copy, Sparkles, AlertCircle, ChevronRight, X, User } from "lucide-react";
 
 type UnifiedLead = {
   id: string;
@@ -72,7 +72,6 @@ export default function ConsultantDashboard() {
     if (!user) return;
     try {
       setLoading(true);
-      // Busca apenas os leads atrelados a este consultor específico
       const [pistasData, leadsData, scriptsData, objData] = await Promise.all([
         directApiCall('pistas', 'GET', undefined, `vendedor_id=eq.${user.id}&order=criado_em.desc`),
         directApiCall('leads', 'GET', undefined, `vendedor_id=eq.${user.id}&order=created_at.desc`).catch(() => []),
@@ -125,8 +124,7 @@ export default function ConsultantDashboard() {
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  // === INTELIGÊNCIA CONTEXTUAL EPSA ===
-  // Decide qual categoria de script mostrar com base no status do Lead
+  // Inteligência Contextual
   const getContextCategory = (status: string) => {
     switch (status) {
       case 'Novo': return 'Primeiro contato';
@@ -139,12 +137,10 @@ export default function ConsultantDashboard() {
 
   const contextualCategory = selectedLead ? getContextCategory(selectedLead.status) : '';
 
-  // Filtra scripts e objeções pela pesquisa e (opcionalmente) pelo contexto
   const filteredScripts = scripts.filter(s => 
     s.content.toLowerCase().includes(searchAssistant.toLowerCase()) || 
     s.title.toLowerCase().includes(searchAssistant.toLowerCase())
   ).sort((a, b) => {
-    // Joga os scripts que combinam com o momento do cliente para o topo
     if (a.category === contextualCategory && b.category !== contextualCategory) return -1;
     if (a.category !== contextualCategory && b.category === contextualCategory) return 1;
     return 0;
@@ -160,46 +156,47 @@ export default function ConsultantDashboard() {
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-cota-green border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-2 sm:px-4 pb-10 h-[calc(100vh-100px)] flex flex-col">
+    <div className="w-full max-w-[1400px] mx-auto px-2 sm:px-4 pb-4 h-[calc(100vh-80px)] flex flex-col">
       
-      <div className="flex items-center gap-3 mb-6 shrink-0">
-        <div className="w-12 h-12 rounded-xl bg-[#0a1a15] flex items-center justify-center border border-[#b8995a]/30">
-          <MessageCircle className="w-6 h-6 text-[#b8995a]" />
+      {/* Título Principal Compacto */}
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#0a1a15] flex items-center justify-center border border-[#b8995a]/30">
+          <MessageCircle className="w-5 h-5 text-[#b8995a]" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Mesa de Batalha EPSA</h1>
-          <p className="text-sm text-gray-500">Atendimento, Scripts e Conversão</p>
+          <h1 className="text-xl font-bold text-gray-800 leading-tight">Mesa de Batalha EPSA</h1>
+          <p className="text-xs text-gray-500">Atendimento, Scripts e Conversão</p>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         
         {/* LADO ESQUERDO: FILA DE CLIENTES */}
         <div className="w-full lg:w-1/3 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-full">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-            <h2 className="font-bold text-gray-800 text-sm mb-3">Minha Fila ({filteredLeads.length})</h2>
+          <div className="p-3 border-b border-gray-100 bg-gray-50/50 shrink-0">
+            <h2 className="font-bold text-gray-800 text-sm mb-2">Minha Fila ({filteredLeads.length})</h2>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder="Buscar cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:outline-none" />
+              <Search className="absolute left-3 top-2 w-4 h-4 text-gray-400" />
+              <input type="text" placeholder="Buscar cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-xs focus:border-cota-green focus:outline-none" />
             </div>
           </div>
           
-          <div className="overflow-y-auto flex-1 p-2 space-y-2">
+          <div className="overflow-y-auto flex-1 p-2 space-y-1.5 custom-scrollbar">
             {filteredLeads.map(lead => (
               <button 
                 key={lead.id} 
                 onClick={() => setSelectedLead(lead)}
-                className={`w-full text-left p-4 rounded-xl border transition-all ${selectedLead?.id === lead.id ? 'bg-cota-green/5 border-cota-green shadow-sm' : 'bg-white border-gray-100 hover:border-cota-green/40 hover:bg-gray-50'}`}
+                className={`w-full text-left p-3 rounded-lg border transition-all ${selectedLead?.id === lead.id ? 'bg-cota-green/5 border-cota-green shadow-sm' : 'bg-white border-gray-100 hover:border-cota-green/40 hover:bg-gray-50'}`}
               >
-                <div className="flex justify-between items-start mb-1">
+                <div className="flex justify-between items-center mb-1">
                   <p className="font-bold text-gray-800 text-sm truncate pr-2">{lead.nome}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${lead.status === 'Novo' ? 'bg-blue-100 text-blue-700' : lead.status === 'Fechado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wider ${lead.status === 'Novo' ? 'bg-blue-100 text-blue-700' : lead.status === 'Fechado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                     {lead.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><Clock className="w-3 h-3"/> {new Date(lead.data_criacao).toLocaleDateString()}</p>
-                <div className="bg-gray-100 rounded text-[11px] px-2 py-1 text-gray-600 truncate">
-                  <span className="font-semibold">{lead.origem}:</span> {lead.motivo}
+                <div className="flex justify-between items-center text-[11px] text-gray-500">
+                  <span>{lead.telefone}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> {new Date(lead.data_criacao).toLocaleDateString()}</span>
                 </div>
               </button>
             ))}
@@ -218,37 +215,39 @@ export default function ConsultantDashboard() {
             </div>
           ) : (
             <>
-              {/* HEADER DO CLIENTE */}
-              <div className="p-5 border-b border-gray-100 bg-[#0a1a15] text-white shrink-0 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-[#b8995a]/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
+              {/* O NOVO CABEÇALHO SUPER COMPACTO */}
+              <div className="p-3 sm:px-5 sm:py-3 border-b border-gray-100 bg-[#0a1a15] text-white shrink-0 relative overflow-hidden flex flex-col justify-center">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#b8995a]/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                
                 <div className="relative z-10 flex justify-between items-start">
-                  <div>
-                    <h2 className="text-xl font-bold text-white mb-1">{selectedLead.nome}</h2>
-                    <p className="text-sm text-gray-300 mb-3">{selectedLead.telefone} • {selectedLead.email || 'Sem e-mail'}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="bg-white/10 border border-white/20 px-2.5 py-1 rounded text-xs font-medium">{selectedLead.motivo}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h2 className="text-base sm:text-lg font-bold text-white truncate">{selectedLead.nome}</h2>
+                      <span className="bg-white/10 border border-white/20 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-gray-200 truncate">{selectedLead.motivo}</span>
                       {selectedLead.valor_carta > 0 && (
-                        <span className="bg-[#b8995a]/20 border border-[#b8995a]/40 text-[#b8995a] px-2.5 py-1 rounded text-xs font-bold">Carta: {formatCurrency(selectedLead.valor_carta)}</span>
+                        <span className="bg-[#b8995a]/20 border border-[#b8995a]/40 text-[#b8995a] px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">CARTA: {formatCurrency(selectedLead.valor_carta)}</span>
                       )}
                     </div>
+                    <p className="text-[11px] sm:text-xs text-gray-400">{selectedLead.telefone} • {selectedLead.email || 'Sem e-mail'}</p>
                   </div>
-                  <button onClick={() => setSelectedLead(null)} className="text-white/50 hover:text-white"><X className="w-5 h-5"/></button>
+                  <button onClick={() => setSelectedLead(null)} className="text-white/40 hover:text-white p-1 ml-2"><X className="w-4 h-4"/></button>
                 </div>
+                
                 {selectedLead.observacoes && (
-                  <div className="relative z-10 mt-4 bg-white/5 border border-white/10 p-3 rounded-lg text-sm text-gray-300 italic">
+                  <div className="relative z-10 mt-2 bg-white/5 border border-white/10 p-2 rounded text-[11px] sm:text-xs text-gray-300 italic line-clamp-1 hover:line-clamp-none transition-all cursor-help" title={selectedLead.observacoes}>
                     "{selectedLead.observacoes}"
                   </div>
                 )}
               </div>
 
-              {/* AÇÕES DE STATUS E CONTATO */}
-              <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-4 shrink-0">
+              {/* BARRA DE AÇÕES COMPACTA */}
+              <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-2 shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-gray-500 uppercase">Mover para:</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase hidden sm:inline">Status:</span>
                   <select 
                     value={selectedLead.status}
                     onChange={(e) => handleUpdateStatus(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cota-green"
+                    className="px-2 py-1 rounded text-[11px] font-bold border border-gray-200 focus:outline-none focus:ring-1 focus:ring-cota-green bg-white shadow-sm"
                   >
                     <option value="Novo">🔵 Novo</option>
                     <option value="Em atendimento">🟡 Em Atendimento</option>
@@ -259,82 +258,80 @@ export default function ConsultantDashboard() {
                 </div>
                 <button 
                   onClick={() => openWhatsApp(selectedLead.telefone)}
-                  className="flex items-center gap-2 bg-[#25D366] text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-[#20bd5a] transition-all"
+                  className="flex items-center gap-1.5 bg-[#25D366] text-white px-3 py-1.5 rounded text-[11px] sm:text-xs font-bold shadow hover:bg-[#20bd5a] transition-all"
                 >
-                  <MessageCircle className="w-4 h-4" /> Abrir WhatsApp
+                  <MessageCircle className="w-3.5 h-3.5" /> Abrir WhatsApp
                 </button>
               </div>
 
               {/* ASSISTENTE EPSA (Scripts e Objeções) */}
               <div className="flex-1 flex flex-col min-h-0 bg-white">
                 
-                <div className="flex border-b border-gray-200 shrink-0">
-                  <button onClick={() => setAssistantTab('scripts')} className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 ${assistantTab === 'scripts' ? 'text-cota-green border-b-2 border-cota-green' : 'text-gray-500 hover:bg-gray-50'}`}>
-                    <Sparkles className="w-4 h-4" /> Scripts de Abordagem
+                <div className="flex border-b border-gray-200 shrink-0 bg-white">
+                  <button onClick={() => setAssistantTab('scripts')} className={`flex-1 py-2 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${assistantTab === 'scripts' ? 'text-cota-green border-b-[3px] border-cota-green bg-cota-green/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+                    <Sparkles className="w-3.5 h-3.5" /> Scripts Rápidos
                   </button>
-                  <button onClick={() => setAssistantTab('objections')} className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 ${assistantTab === 'objections' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500 hover:bg-gray-50'}`}>
-                    <AlertCircle className="w-4 h-4" /> Quebra de Objeções
+                  <button onClick={() => setAssistantTab('objections')} className={`flex-1 py-2 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${assistantTab === 'objections' ? 'text-red-600 border-b-[3px] border-red-600 bg-red-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+                    <AlertCircle className="w-3.5 h-3.5" /> Quebra de Objeções
                   </button>
                 </div>
 
-                <div className="p-4 shrink-0 bg-gray-50/50">
+                <div className="p-3 shrink-0 bg-gray-50/50 border-b border-gray-100">
                   <div className="relative">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <input type="text" placeholder={assistantTab === 'scripts' ? "Buscar roteiros..." : "Buscar objeção do cliente (ex: muito caro)..."} value={searchAssistant} onChange={(e) => setSearchAssistant(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:outline-none bg-white shadow-sm" />
+                    <Search className="absolute left-3 top-2 w-3.5 h-3.5 text-gray-400" />
+                    <input type="text" placeholder={assistantTab === 'scripts' ? "Procurar roteiros..." : "Ex: Achei muito caro, Vou pensar..."} value={searchAssistant} onChange={(e) => setSearchAssistant(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded text-xs focus:border-cota-green focus:outline-none bg-white shadow-sm" />
                   </div>
-                  {assistantTab === 'scripts' && contextualCategory && !searchAssistant && (
-                    <p className="text-[11px] text-cota-green-dark font-medium mt-2 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> Sugerindo roteiros de "{contextualCategory}" para este cliente.
-                    </p>
-                  )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* ÁREA COM BARRA DE ROLAGEM MAXIMIZADA */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scrollbar bg-[#f8fafc]">
                   {assistantTab === 'scripts' ? (
                     filteredScripts.length > 0 ? filteredScripts.map(script => (
-                      <div key={script.id} className={`border rounded-xl p-4 transition-all ${script.category === contextualCategory ? 'border-cota-green/50 bg-cota-green/5' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-cota-gold bg-cota-gold/10 px-2 py-0.5 rounded">{script.category}</span>
-                            <h4 className="font-bold text-gray-800 text-sm mt-1">{script.title}</h4>
+                      <div key={script.id} className={`border rounded-lg p-3 sm:p-4 transition-all shadow-sm ${script.category === contextualCategory ? 'border-cota-green/40 bg-[#f0fdf4]' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                        {script.category === contextualCategory && (
+                          <div className="flex items-center gap-1 text-[9px] font-black text-cota-green uppercase tracking-wider mb-2">
+                            <Sparkles className="w-3 h-3" /> Recomendado para esta etapa
                           </div>
+                        )}
+                        <h4 className="font-bold text-gray-800 text-xs sm:text-sm mb-2">{script.title}</h4>
+                        <div className="bg-gray-50/80 p-2.5 rounded border border-gray-100">
+                          <p className="text-[11px] sm:text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed">{script.content}</p>
                         </div>
-                        <p className="text-xs text-gray-600 font-mono whitespace-pre-wrap mt-3 bg-white p-3 rounded border border-gray-100">{script.content}</p>
                         <div className="flex gap-2 mt-3">
-                          <button onClick={() => copyToClipboard(script.content)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-bold hover:bg-gray-50">
+                          <button onClick={() => copyToClipboard(script.content)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-gray-200 text-gray-600 bg-white rounded text-[10px] sm:text-xs font-bold hover:bg-gray-50">
                             <Copy className="w-3 h-3" /> Copiar
                           </button>
-                          <button onClick={() => openWhatsApp(selectedLead.telefone, script.content)} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#25D366]/10 text-[#20bd5a] rounded text-xs font-bold hover:bg-[#25D366]/20">
-                            <MessageCircle className="w-3 h-3" /> Enviar Direto
+                          <button onClick={() => openWhatsApp(selectedLead.telefone, script.content)} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#25D366]/10 text-[#20bd5a] rounded text-[10px] sm:text-xs font-bold hover:bg-[#25D366]/20">
+                            <MessageCircle className="w-3 h-3" /> Enviar
                           </button>
                         </div>
                       </div>
-                    )) : <p className="text-center text-sm text-gray-400 mt-6">Nenhum script encontrado.</p>
+                    )) : <p className="text-center text-xs text-gray-400 mt-6">Nenhum script encontrado.</p>
                   ) : (
                     filteredObjections.length > 0 ? filteredObjections.map(obj => (
-                      <div key={obj.id} className="border border-red-100 rounded-xl p-4 bg-white hover:border-red-200 transition-all">
-                        <div className="flex items-start gap-2 mb-3">
-                          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <div key={obj.id} className="border border-red-100 rounded-lg p-3 sm:p-4 bg-white hover:border-red-200 transition-all shadow-sm">
+                        <div className="flex items-start gap-2 mb-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
                           <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-red-500">{obj.category}</span>
-                            <h4 className="font-bold text-gray-800 text-sm mt-0.5">"{obj.objection}"</h4>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-red-500">{obj.category}</span>
+                            <h4 className="font-bold text-gray-800 text-xs sm:text-sm mt-0.5">"{obj.objection}"</h4>
                           </div>
                         </div>
-                        <div className="bg-red-50/50 border border-red-50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-700 italic flex gap-2"><ChevronRight className="w-3 h-3 text-red-400 shrink-0 mt-0.5"/> {obj.response}</p>
+                        <div className="bg-red-50/50 border border-red-50 p-2.5 rounded">
+                          <p className="text-[11px] sm:text-xs text-gray-700 italic flex gap-1.5 leading-relaxed"><ChevronRight className="w-3 h-3 text-red-400 shrink-0 mt-0.5"/> {obj.response}</p>
                         </div>
                         {obj.tips && (
-                          <div className="mt-3 flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded">
-                            <Sparkles className="w-3.5 h-3.5 shrink-0" /> <span className="font-medium">{obj.tips}</span>
+                          <div className="mt-2.5 flex items-start gap-1.5 text-[10px] sm:text-xs text-amber-700 bg-amber-50 p-2 rounded">
+                            <Sparkles className="w-3 h-3 shrink-0 mt-0.5" /> <span className="font-medium">{obj.tips}</span>
                           </div>
                         )}
-                        <div className="flex gap-2 mt-3">
-                          <button onClick={() => copyToClipboard(obj.response)} className="w-full flex items-center justify-center gap-1 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-bold hover:bg-gray-50">
+                        <div className="mt-3">
+                          <button onClick={() => copyToClipboard(obj.response)} className="w-full flex items-center justify-center gap-1 py-1.5 border border-gray-200 text-gray-600 bg-gray-50 rounded text-[10px] sm:text-xs font-bold hover:bg-gray-100">
                             <Copy className="w-3 h-3" /> Copiar Resposta
                           </button>
                         </div>
                       </div>
-                    )) : <p className="text-center text-sm text-gray-400 mt-6">Nenhuma objeção encontrada.</p>
+                    )) : <p className="text-center text-xs text-gray-400 mt-6">Nenhuma objeção encontrada.</p>
                   )}
                 </div>
 

@@ -6,6 +6,38 @@ import { CATEGORY_IMAGES, DEFAULT_COURSE_IMAGE, LEVEL_LABELS, CATEGORY_LABELS } 
 import { toast } from "sonner";
 import type { Course } from "@/types";
 
+function stripMarkdownForPreview(content?: string | null, maxLength = 150) {
+  if (!content) return "";
+
+  const cleaned = content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\|/g, " ")
+    .replace(/---+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length <= maxLength) return cleaned;
+  return `${cleaned.slice(0, maxLength).trim()}...`;
+}
+
+const levelBadgeClasses: Record<string, string> = {
+  beginner: "bg-cota-green/90 text-white",
+  intermediate: "bg-cota-gold/95 text-cota-green-dark",
+  advanced: "bg-gray-900/90 text-white",
+  leadership: "bg-purple-600/90 text-white",
+};
+
 export default function CourseCatalogPage() {
   const { user } = useAuthStore();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -168,12 +200,13 @@ export default function CourseCatalogPage() {
           {filtered.map((course) => {
             const isEnrolled = enrolledIds.includes(course.id);
             const coverImg = course.cover_image || CATEGORY_IMAGES[course.category || ""] || DEFAULT_COURSE_IMAGE;
+            const descriptionPreview = stripMarkdownForPreview(course.description, 155);
             return (
               <div key={course.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all group">
                 <div className="relative">
                   <img src={coverImg} alt={course.title} className="w-full h-44 object-cover group-hover:scale-105 transition-transform duration-300" />
                   <div className="absolute top-3 left-3">
-                    <span className={`badge-level-${course.level} shadow-sm`}>{LEVEL_LABELS[course.level]}</span>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold shadow-sm backdrop-blur-sm ${levelBadgeClasses[course.level] || "bg-white/90 text-gray-700"}`}>{LEVEL_LABELS[course.level] || course.level}</span>
                   </div>
                   {isEnrolled && (
                     <div className="absolute top-3 right-3 bg-cota-green text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -191,7 +224,7 @@ export default function CourseCatalogPage() {
                   <h3 className="font-bold text-gray-800 text-base leading-tight mb-2 group-hover:text-cota-green transition-colors">
                     {course.title}
                   </h3>
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4">{descriptionPreview}</p>
 
                   <div className="flex items-center gap-3 text-xs text-gray-400 mb-4">
                     <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{course.duration_hours}h</span>
@@ -199,7 +232,7 @@ export default function CourseCatalogPage() {
                   </div>
 
                   {isEnrolled ? (
-                    <Link to={`/courses/${course.id}`}
+                    <Link to={`/courses/${course.id}/player`}
                       className="block w-full text-center bg-cota-green text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-cota-green-light transition-colors">
                       Continuar Trilha
                     </Link>
@@ -211,7 +244,7 @@ export default function CourseCatalogPage() {
                       >
                         Matricular-se
                       </button>
-                      <Link to={`/courses/${course.id}`}
+                      <Link to={`/courses/${course.id}/player`}
                         className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                         Ver
                       </Link>

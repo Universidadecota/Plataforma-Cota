@@ -174,11 +174,11 @@ export default function LessonPage() {
       if (line.trim() === '---' || line.trim() === '***') {
         elements.push(<hr key={i} className="my-8 border-gray-200" />);
       } else if (line.startsWith('# ')) {
-        elements.push(<h1 key={i} className="text-2xl md:text-3xl font-black text-gray-900 mt-10 mb-5 tracking-tight uppercase text-cota-green-dark">{parseInline(line.substring(2))}</h1>);
+       elements.push(<h1 key={i} className="text-2xl md:text-3xl font-black mt-10 mb-5 tracking-tight uppercase text-cota-green-dark">{parseInline(line.substring(2))}</h1>);
       } else if (line.startsWith('## ')) {
         elements.push(<h2 key={i} className="text-xl font-bold text-gray-800 mt-8 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">{parseInline(line.substring(3))}</h2>);
       } else if (line.startsWith('### ')) {
-        elements.push(<h3 key={i} className="text-lg font-bold text-gray-800 mt-6 mb-3 text-cota-green">{parseInline(line.substring(4))}</h3>);
+       elements.push(<h3 key={i} className="text-lg font-bold mt-6 mb-3 text-cota-green">{parseInline(line.substring(4))}</h3>);
       } else if (line.startsWith('> ')) {
         elements.push(<blockquote key={i} className="border-l-4 border-cota-green bg-cota-green/5 p-4 my-5 rounded-r-xl italic text-gray-700">{parseInline(line.substring(2))}</blockquote>);
       } else if (line.trim() === '') {
@@ -196,38 +196,49 @@ export default function LessonPage() {
   // =====================================================================
 
   useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const lessonDataArr = await directApiCall("lessons", "GET", undefined, `id=eq.${id}&select=*,modules(*,courses(id,title))`);
-        const lessonData = lessonDataArr?.[0];
-        if (!lessonData) return;
-        setLesson(lessonData as FullLesson);
+  async function load() {
+    try {
+      setLoading(true);
+      const lessonDataArr = await directApiCall("lessons", "GET", undefined, `id=eq.${id}&select=*,modules(*,courses(id,title))`);
+      const lessonData = lessonDataArr?.[0];
+      if (!lessonData) return;
+      setLesson(lessonData as FullLesson);
 
-        const matData = await directApiCall("materials", "GET", undefined, `lesson_id=eq.${id}`);
-        setMaterials(matData || []);
+      const matData = await directApiCall("materials", "GET", undefined, `lesson_id=eq.${id}`);
+      setMaterials(matData || []);
 
-        const progDataArr = await directApiCall("lesson_progress", "GET", undefined, `student_id=eq.${user!.id}&lesson_id=eq.${id}`);
-        const progData = progDataArr?.[0];
-        if (progData) {
-          setIsCompleted(progData.completed);
-          setNotes(progData.notes || "");
-        }
-
-        const siblingLessons = await directApiCall("lessons", "GET", undefined, `module_id=eq.${lessonData.module_id}&order=order_index.asc`);
-        if (siblingLessons) {
-          const idx = siblingLessons.findIndex((l: any) => l.id === id);
-          setPrevLesson(idx > 0 ? siblingLessons[idx - 1] : null);
-          setNextLesson(idx < siblingLessons.length - 1 ? siblingLessons[idx + 1] : null);
-        }
-      } catch (error) {
-        toast.error("Ocorreu um erro ao carregar o conteúdo da aula.");
-      } finally {
-        setLoading(false);
+      const progDataArr = await directApiCall("lesson_progress", "GET", undefined, `student_id=eq.${user!.id}&lesson_id=eq.${id}`);
+      const progData = progDataArr?.[0];
+      if (progData) {
+        setIsCompleted(progData.completed);
+        setNotes(progData.notes || "");
       }
+
+      // NOVO BLOCO DE ORDENAÇÃO AQUI:
+      const siblingLessons = await directApiCall("lessons", "GET", undefined, `module_id=eq.${lessonData.module_id}`);
+
+if (siblingLessons) {
+  // Ignora o banco de dados e força a ordenação estritamente pelo texto/número do título
+  siblingLessons.sort((a: any, b: any) => {
+    return String(a.title || "").trim().localeCompare(
+      String(b.title || "").trim(), 
+      'pt-BR', 
+      { numeric: true, sensitivity: 'base' }
+    );
+  });
+
+  const idx = siblingLessons.findIndex((l: any) => l.id === id);
+  setPrevLesson(idx > 0 ? siblingLessons[idx - 1] : null);
+  setNextLesson(idx < siblingLessons.length - 1 ? siblingLessons[idx + 1] : null);
+}
+    } catch (error) {  // <-- ATENÇÃO: A chave do try deve fechar logo antes do catch
+      toast.error("Ocorreu um erro ao carregar o conteúdo da aula.");
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, [id, user]);
+  }
+  load();
+}, [id, user]);
 
   const handleMarkComplete = async () => {
     setSaving(true);

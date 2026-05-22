@@ -27,6 +27,7 @@ import NotFound from "@/pages/NotFound";
 import CRMPage from "@/pages/crm/CRMPage";
 import AISimulatorPage from "@/pages/student/AISimulatorPage";
 import ConsultantDashboard from "./pages/consultant/ConsultantDashboard";
+import CoursePlayerPage from "./pages/student/CoursePlayerPage";
 
 function LoadingScreen() {
   return (
@@ -81,6 +82,7 @@ export default function App() {
       <AuthInitializer>
         <Routes>
           <Route path="/seja-parceiro" element={<PartnerRegister />} />
+          <Route path="courses/:courseId/player" element={<ProtectedRoute><CoursePlayerPage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
           <Route
             path="/"

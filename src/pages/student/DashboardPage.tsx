@@ -223,7 +223,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-3">
               {coursesProgress.slice(0, 4).map(({ course, totalLessons, completedLessons, progress }) => (
-                <Link key={course.id} to={`/courses/${course.id}`}
+                <Link key={course.id} to={`/courses/${course.id}/player`}
                   className="bg-white rounded-xl border border-gray-100 p-4 flex gap-3 sm:gap-4 hover:shadow-md transition-all group min-w-0 overflow-hidden">
                   <img
                     src={course.cover_image || CATEGORY_IMAGES[course.category || ""] || DEFAULT_COURSE_IMAGE}
