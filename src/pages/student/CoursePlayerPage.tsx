@@ -424,7 +424,7 @@ export default function CoursePlayerPage() {
   if (loading) return <div className="flex justify-center py-32"><div className="w-10 h-10 border-4 border-cota-green border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto px-2 sm:px-4 pb-10 h-[calc(100vh-90px)] flex flex-col min-w-0">
+    <div className="w-full max-w-[1500px] mx-auto px-2 sm:px-4 pb-10 h-auto lg:h-[calc(100vh-90px)] flex flex-col min-w-0">
       
       {/* Top Navigation */}
       <div className="flex items-center justify-between mb-4 shrink-0">
@@ -440,10 +440,10 @@ export default function CoursePlayerPage() {
       </div>
 
       {/* Main Player Canvas */}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-6 flex-none lg:flex-1 lg:min-h-0">
         
         {/* LADO ESQUERDO: VÍDEO + TEXTO + MATERIAIS */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 custom-scrollbar">
+        <div className="w-full flex-none lg:flex-1 flex flex-col lg:min-h-0 overflow-visible lg:overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 custom-scrollbar">
           {currentLesson ? (
             <>
               {/* Box de Vídeo Cinema */}
@@ -531,14 +531,14 @@ export default function CoursePlayerPage() {
         </div>
 
         {/* LADO DIREITO: ÍNDICE DE MÓDULOS (ESTILO NETFLIX) */}
-        <div className="w-full lg:w-1/3 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full">
+        <div className="w-full lg:w-1/3 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-auto lg:h-full">
           <div className="p-4 border-b border-gray-100 bg-gray-50/60 shrink-0">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{course?.category}</span>
             <h3 className="font-bold text-gray-800 text-sm sm:text-base truncate mt-0.5">{course?.title}</h3>
           </div>
 
           {/* Grade de Aulas */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
+          <div className="flex-none lg:flex-1 max-h-[70vh] lg:max-h-none overflow-y-auto p-2 space-y-4 custom-scrollbar">
             {modules.map((mod) => (
               <div key={mod.id} className="space-y-1">
                 <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider px-2 mb-1.5 mt-2">
