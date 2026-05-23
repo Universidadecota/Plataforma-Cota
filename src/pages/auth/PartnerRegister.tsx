@@ -10,12 +10,20 @@ export default function PartnerRegister() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [companyType, setCompanyType] = useState("Corretor Autônomo");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [acceptLgpdResponsibility, setAcceptLgpdResponsibility] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !fullName || !phone) {
       toast.error("Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    if (!acceptTerms || !acceptPrivacy || !acceptLgpdResponsibility) {
+      toast.error("Para solicitar acesso, aceite os termos, a política de privacidade e a declaração LGPD.");
       return;
     }
 
@@ -48,44 +56,31 @@ export default function PartnerRegister() {
       }
 
       const token = session?.access_token || supabaseAnonKey;
+      const acceptedAt = new Date().toISOString();
 
-      // 2. Tentar atualizar o perfil que o Trigger do banco cria automaticamente para "pending_partner"
-      const profileResponse = await fetch(`${supabaseUrl}/rest/v1/user_profiles?id=eq.${authUser.id}`, {
-        method: "PATCH",
+      // 2. Registrar/atualizar o perfil como "pending_partner" via RPC segura no Supabase.
+      // Essa função evita que o trigger padrão mantenha o usuário como "student".
+      const rpcResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/register_pending_partner`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": supabaseAnonKey,
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          full_name: fullName.trim(),
-          username: email.split("@")[0],
-          phone: phone.trim(),
-          role: "pending_partner", 
-          biografia: `Parceiro Comercial - ${companyType}`
+          p_user_id: authUser.id,
+          p_email: email.trim(),
+          p_full_name: fullName.trim(),
+          p_phone: phone.trim(),
+          p_company_type: companyType,
+          p_accepted_at: acceptedAt,
+          p_user_agent: navigator.userAgent
         }),
       });
 
-      // 3. Caso o trigger não exista, faz o insert manual do perfil como "pending_partner"
-      if (!profileResponse.ok) {
-        await fetch(`${supabaseUrl}/rest/v1/user_profiles`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": supabaseAnonKey,
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            id: authUser.id,
-            email: email,
-            full_name: fullName.trim(),
-            username: email.split("@")[0],
-            phone: phone.trim(),
-            role: "pending_partner",
-            points: 0,
-            biografia: `Parceiro Comercial - ${companyType}`
-          }),
-        });
+      if (!rpcResponse.ok) {
+        const errText = await rpcResponse.text();
+        throw new Error(`Erro ao registrar perfil de parceiro: ${errText}`);
       }
 
       // Sucesso! Avisa o usuário que ele precisa esperar e manda para o login.
@@ -118,7 +113,7 @@ export default function PartnerRegister() {
             Transforme rejeição bancária em <span className="text-cota-gold">faturamento imobiliário</span>.
           </h2>
           <p className="text-white/75 text-sm leading-relaxed">
-            Não jogue dinheiro fora com leads descartados. Cadastre clientes reprovados no financiamento habitacional, acompanhe a esteira de consórcios em tempo real e receba 30% de split de comissão.
+            Não jogue dinheiro fora com leads descartados. Cadastre clientes que autorizaram o encaminhamento para análise de alternativas patrimoniais, acompanhe a esteira de consórcios em tempo real e receba 30% de split de comissão.
           </p>
 
           <div className="space-y-3 pt-4">
@@ -224,14 +219,53 @@ export default function PartnerRegister() {
                   placeholder="••••••••" 
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" 
                 />
               </div>
             </div>
 
+            <div className="space-y-3 rounded-2xl border border-cota-gold/30 bg-cota-gold/5 p-4">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-cota-green focus:ring-cota-green"
+                />
+                <span className="text-[11px] text-gray-600 leading-relaxed">
+                  Li e aceito os <Link to="/termos-de-parceria" target="_blank" className="font-bold text-cota-green hover:underline">Termos de Parceria da Universidade EPSA</Link>.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptPrivacy}
+                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-cota-green focus:ring-cota-green"
+                />
+                <span className="text-[11px] text-gray-600 leading-relaxed">
+                  Li e aceito a <Link to="/politica-de-privacidade" target="_blank" className="font-bold text-cota-green hover:underline">Política de Privacidade da Universidade EPSA</Link>.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptLgpdResponsibility}
+                  onChange={(e) => setAcceptLgpdResponsibility(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-cota-green focus:ring-cota-green"
+                />
+                <span className="text-[11px] text-gray-600 leading-relaxed">
+                  Declaro que somente enviarei leads obtidos de forma lícita, com ciência do titular, e que não cadastrarei dados comprados, extraídos ou compartilhados sem autorização.
+                </span>
+              </label>
+            </div>
+
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || !acceptTerms || !acceptPrivacy || !acceptLgpdResponsibility}
               className="w-full flex items-center justify-center gap-2 bg-cota-green text-white py-2.5 rounded-xl text-sm font-bold hover:bg-cota-green-light transition-colors shadow-sm disabled:opacity-50 mt-2"
             >
               {loading ? "Processando Credenciais..." : "Solicitar Acesso Parceiro"}

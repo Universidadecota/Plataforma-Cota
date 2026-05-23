@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, Bell, Settings, Plus, Edit2, Trash2, Eye, EyeOff, MessageCircle, ShieldCheck } from "lucide-react";
+import { Users, BookOpen, Bell, Settings, Plus, Edit2, Trash2, Eye, EyeOff, MessageCircle, ShieldCheck, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import type { UserProfile, Course, Announcement, WhatsAppScript, Objection } from "@/types";
@@ -196,10 +196,24 @@ export default function AdminDashboard() {
   // --- Funções de Utilizadores ---
   const updateUserRole = async (userId: string, role: string) => {
     try {
-      await directApiCall('user_profiles', 'PATCH', { role }, `id=eq.${userId}`);
-      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: role as UserProfile["role"] } : u));
-      toast.success("Perfil atualizado! 🚀");
-    } catch (error) { toast.error("Erro ao atualizar perfil."); }
+      if (role === "partner") {
+        await directApiCall('rpc/approve_partner', 'POST', { p_partner_id: userId });
+      } else {
+        await directApiCall('user_profiles', 'PATCH', { role }, `id=eq.${userId}`);
+      }
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, role: role as UserProfile["role"] } : u
+        )
+      );
+
+      toast.success(role === "partner" ? "Parceiro aprovado com registro de auditoria! " : "Perfil atualizado! 🚀");
+      await loadAll(false);
+    } catch (error: any) {
+      console.error("Erro ao atualizar perfil:", error);
+      toast.error(error.message || "Erro ao atualizar perfil.");
+    }
   };
 
   // --- Funções de Comunicados ---
@@ -403,6 +417,7 @@ export default function AdminDashboard() {
                       <th className="px-5 py-3 text-left">Utilizador</th>
                       <th className="px-5 py-3 text-left">E-mail</th>
                       <th className="px-5 py-3 text-center">Perfil</th>
+                      <th className="px-5 py-3 text-center">Compliance</th>
                       <th className="px-5 py-3 text-center">Pontos</th>
                       <th className="px-5 py-3 text-center">Desde</th>
                     </tr>
@@ -433,6 +448,20 @@ export default function AdminDashboard() {
                             <option value="manager">Gestor</option>
                             <option value="admin">Admin</option>
                           </select>
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          {["pending_partner", "partner"].includes(u.role) ? (
+                            <Link
+                              to={`/admin/partner-compliance/${u.id}`}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cota-green/20 bg-cota-green/5 px-2.5 py-1 text-[11px] font-bold text-cota-green hover:bg-cota-green/10 transition-colors"
+                              title="Ver comprovante de aceite e homologação"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              Comprovante
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-center text-sm font-bold text-gray-700">{u.points}</td>
                         <td className="px-5 py-3.5 text-center text-xs text-gray-400">{formatDate(u.created_at)}</td>

@@ -28,6 +28,10 @@ import CRMPage from "@/pages/crm/CRMPage";
 import AISimulatorPage from "@/pages/student/AISimulatorPage";
 import ConsultantDashboard from "./pages/consultant/ConsultantDashboard";
 import CoursePlayerPage from "./pages/student/CoursePlayerPage";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
+import PartnerTermsPage from "@/pages/PartnerTermsPage";
+import PartnerCompliancePage from "@/pages/admin/PartnerCompliancePage";
+import PendingApprovalPage from "@/pages/auth/PendingApprovalPage";
 
 function LoadingScreen() {
   return (
@@ -48,10 +52,19 @@ function ProtectedRoute({
   allowedRoles?: string[];
 }) {
   const { user, loading } = useAuthStore();
+
   if (loading) return <LoadingScreen />;
+
   if (!user) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user.role))
+
+  if (user.role === "pending_partner") {
+    return <Navigate to="/aguardando-aprovacao" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -82,6 +95,9 @@ export default function App() {
       <AuthInitializer>
         <Routes>
           <Route path="/seja-parceiro" element={<PartnerRegister />} />
+          <Route path="/politica-de-privacidade" element={<PrivacyPolicyPage />} />
+          <Route path="/termos-de-parceria" element={<PartnerTermsPage />} />
+          <Route path="/aguardando-aprovacao" element={<PendingApprovalPage />} />
           <Route path="courses/:courseId/player" element={<ProtectedRoute><CoursePlayerPage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -195,6 +211,15 @@ export default function App() {
             } />
             
             <Route
+              path="admin/partner-compliance/:id"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                 <PartnerCompliancePage />
+                  </ProtectedRoute>
+            }
+            />
+
+            <Route
               path="admin/courses/:id"
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
@@ -202,6 +227,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

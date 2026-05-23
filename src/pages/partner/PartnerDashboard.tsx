@@ -16,6 +16,13 @@ type Lead = {
   valor_carta?: number;
   comissao_parceiro?: number;
   status_pagamento?: string;
+  origem_detalhada?: string;
+  base_legal?: string;
+  canal_autorizado?: string;
+  lgpd_declarado?: boolean;
+  lgpd_declarado_em?: string;
+  lgpd_declarado_por?: string;
+  privacy_notice_version?: string;
 };
 
 export default function PartnerDashboard() {
@@ -26,6 +33,13 @@ export default function PartnerDashboard() {
   const [emailLead, setEmailLead] = useState("");
   const [motivoLead, setMotivoLead] = useState("Recusado pelo banco");
   const [observacoesLead, setObservacoesLead] = useState("");
+
+  // Campos de governança LGPD por lead
+  const [origemDetalhada, setOrigemDetalhada] = useState("Imobiliária");
+  const [baseLegal, setBaseLegal] = useState("Cliente autorizou compartilhamento com a EPSA");
+  const [canalAutorizado, setCanalAutorizado] = useState("WhatsApp");
+  const [lgpdDeclarado, setLgpdDeclarado] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -101,6 +115,11 @@ export default function PartnerDashboard() {
       toast.error("Preencha o nome e o telefone do cliente.");
       return;
     }
+
+    if (!origemDetalhada || !baseLegal || !canalAutorizado || !lgpdDeclarado) {
+      toast.error("Confirme a origem, a base legal e a declaração LGPD do lead.");
+      return;
+    }
     
     try {
       setSaving(true);
@@ -112,6 +131,13 @@ export default function PartnerDashboard() {
         observacoes: observacoesLead.trim(),
         partner_id: user?.id,
         origem: "Parceiro",
+        origem_detalhada: origemDetalhada,
+        base_legal: baseLegal,
+        canal_autorizado: canalAutorizado,
+        lgpd_declarado: true,
+        lgpd_declarado_em: new Date().toISOString(),
+        lgpd_declarado_por: user?.id,
+        privacy_notice_version: "epsa-privacidade-v1",
         status: "Novo"
       });
       toast.success("Lead cadastrado com sucesso na EPSA! 🚀");
@@ -120,6 +146,10 @@ export default function PartnerDashboard() {
       setEmailLead("");
       setMotivoLead("Recusado pelo banco");
       setObservacoesLead("");
+      setOrigemDetalhada("Imobiliária");
+      setBaseLegal("Cliente autorizou compartilhamento com a EPSA");
+      setCanalAutorizado("WhatsApp");
+      setLgpdDeclarado(false);
       setStatusFilter(null);
       await loadLeads();
     } catch (err) {
@@ -322,8 +352,71 @@ export default function PartnerDashboard() {
                 <textarea value={observacoesLead} onChange={(e) => setObservacoesLead(e.target.value)} maxLength={100} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 resize-none" />
                 <div className="flex justify-end mt-1"><span className={`text-[10px] font-medium ${observacoesLead.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>{observacoesLead.length} / 100</span></div>
               </div>
+
+              <div className="md:col-span-2 border border-[#b8995a]/30 bg-[#b8995a]/5 rounded-xl p-4">
+                <div className="flex items-start gap-2 mb-4">
+                  <ShieldCheck className="w-4 h-4 text-[#b8995a] mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wide">Governança LGPD do Lead</h3>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">Informe a origem, a base legal e o canal autorizado antes de compartilhar dados pessoais com a EPSA.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Origem detalhada *</label>
+                    <select value={origemDetalhada} onChange={(e) => setOrigemDetalhada(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white">
+                      <option value="Imobiliária">Imobiliária</option>
+                      <option value="Corretor parceiro">Corretor parceiro</option>
+                      <option value="Construtora">Construtora</option>
+                      <option value="Correspondente bancário">Correspondente bancário</option>
+                      <option value="Indicação direta">Indicação direta</option>
+                      <option value="Formulário EPSA">Formulário EPSA</option>
+                      <option value="Evento">Evento</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="YouTube">YouTube</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Base legal / autorização *</label>
+                    <select value={baseLegal} onChange={(e) => setBaseLegal(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white">
+                      <option value="Cliente solicitou contato">Cliente solicitou contato</option>
+                      <option value="Cliente autorizou compartilhamento com a EPSA">Cliente autorizou compartilhamento com a EPSA</option>
+                      <option value="Cliente já tinha relacionamento comercial com o parceiro">Cliente já tinha relacionamento comercial com o parceiro</option>
+                      <option value="Lead captado por formulário com aviso de privacidade">Lead captado por formulário com aviso de privacidade</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Canal autorizado *</label>
+                    <select value={canalAutorizado} onChange={(e) => setCanalAutorizado(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white">
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Telefone">Telefone</option>
+                      <option value="E-mail">E-mail</option>
+                      <option value="WhatsApp e telefone">WhatsApp e telefone</option>
+                      <option value="Todos os canais informados">Todos os canais informados</option>
+                    </select>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 mt-4 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={lgpdDeclarado}
+                    onChange={(e) => setLgpdDeclarado(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-cota-green focus:ring-cota-green"
+                  />
+                  <span className="text-[11px] text-gray-600 leading-relaxed">
+                    Declaro que o titular dos dados foi informado sobre o compartilhamento de seus dados com a EPSA para fins de atendimento, análise de alternativas patrimoniais, consórcio, crédito e acompanhamento comercial.
+                  </span>
+                </label>
+              </div>
             </div>
-            <button type="submit" disabled={saving} className="w-full md:w-auto md:px-8 ml-auto flex items-center justify-center gap-2 bg-cota-green text-white py-2.5 rounded-lg text-sm font-bold hover:bg-cota-green-light transition-colors disabled:opacity-50">
+            <button type="submit" disabled={saving || !lgpdDeclarado} className="w-full md:w-auto md:px-8 ml-auto flex items-center justify-center gap-2 bg-cota-green text-white py-2.5 rounded-lg text-sm font-bold hover:bg-cota-green-light transition-colors disabled:opacity-50">
               <Send className="w-4 h-4" />{saving ? "Enviando..." : "Enviar Lead para EPSA"}
             </button>
           </form>
