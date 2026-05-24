@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   AlertCircle,
   Info,
   AlertTriangle,
   Megaphone,
+  ChevronDown,
+  ChevronUp,
+  Search,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { PRIORITY_LABELS } from "@/constants";
@@ -26,23 +29,43 @@ function stripMarkdownPrefix(text: string) {
     .trim();
 }
 
+function getAnnouncementPreview(content: string, maxLength = 150) {
+  const normalized = normalizeMarkdown(content)
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^[-*+]\s*/gm, "")
+    .replace(/^\d+\.\s*/gm, "")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trim()}...`;
+}
+
 function renderAnnouncementContent(content: string, announcementTitle?: string) {
   const normalized = normalizeMarkdown(content);
   if (!normalized) return null;
 
-  let blocks = normalized.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+  let blocks = normalized
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
 
-  // Evita repetir o título quando o conteúdo começa com um heading igual ao título do card
   if (announcementTitle && blocks.length > 0) {
     const firstBlockClean = stripMarkdownPrefix(blocks[0]).toLowerCase();
     const titleClean = announcementTitle.trim().toLowerCase();
+
     if (firstBlockClean === titleClean) {
       blocks = blocks.slice(1);
     }
   }
 
   return blocks.map((block, index) => {
-    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    const lines = block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
     if (lines.length === 0) return null;
 
     const singleLine = lines.join(" ");
@@ -71,7 +94,10 @@ function renderAnnouncementContent(content: string, announcementTitle?: string) 
 
     if (lines.every((line) => /^[-*]\s+/.test(line))) {
       return (
-        <ul key={index} className="list-disc pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4">
+        <ul
+          key={index}
+          className="list-disc pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4"
+        >
           {lines.map((line, i) => (
             <li key={i}>{line.replace(/^[-*]\s+/, "")}</li>
           ))}
@@ -81,7 +107,10 @@ function renderAnnouncementContent(content: string, announcementTitle?: string) 
 
     if (lines.every((line) => /^\d+\.\s+/.test(line))) {
       return (
-        <ol key={index} className="list-decimal pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4">
+        <ol
+          key={index}
+          className="list-decimal pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4"
+        >
           {lines.map((line, i) => (
             <li key={i}>{line.replace(/^\d+\.\s+/, "")}</li>
           ))}
@@ -89,11 +118,13 @@ function renderAnnouncementContent(content: string, announcementTitle?: string) 
       );
     }
 
-    // Caso de bloco em uma única linha com vários itens numerados: 1. ... 2. ... 3. ...
     const inlineNumberedItems = singleLine.match(/\d+\.\s.*?(?=(\s\d+\.\s)|$)/g);
     if (inlineNumberedItems && inlineNumberedItems.length >= 3) {
       return (
-        <ol key={index} className="list-decimal pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4">
+        <ol
+          key={index}
+          className="list-decimal pl-5 space-y-2 text-sm md:text-[15px] leading-7 text-gray-700 mb-4"
+        >
           {inlineNumberedItems.map((item, i) => (
             <li key={i}>{item.replace(/^\d+\.\s+/, "").trim()}</li>
           ))}
@@ -115,6 +146,8 @@ function renderAnnouncementContent(content: string, announcementTitle?: string) 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const directApiCall = async (
     tableName: string,
@@ -130,6 +163,7 @@ export default function AnnouncementsPage() {
       const storageKey = Object.keys(localStorage).find(
         (k) => k.startsWith("sb-") && k.endsWith("-auth-token")
       );
+
       if (storageKey) {
         const sessionData = JSON.parse(
           localStorage.getItem(storageKey) || "{}"
@@ -166,6 +200,7 @@ export default function AnnouncementsPage() {
       const text = await response.text();
       return text ? JSON.parse(text) : null;
     }
+
     return true;
   };
 
@@ -173,13 +208,20 @@ export default function AnnouncementsPage() {
     async function load() {
       try {
         setLoading(true);
+
         const data = await directApiCall(
           "announcements",
           "GET",
           undefined,
-          "is_published=eq.true&select=*&order=priority.asc,created_at.desc"
+          "is_published=eq.true&select=*&order=created_at.desc"
         );
-        setAnnouncements(data || []);
+
+        const list = data || [];
+        setAnnouncements(list);
+
+        if (list.length > 0) {
+          setOpenId(list[0].id);
+        }
       } catch (error) {
         console.error(error);
         toast.error("Erro ao carregar comunicados.");
@@ -187,6 +229,7 @@ export default function AnnouncementsPage() {
         setLoading(false);
       }
     }
+
     load();
   }, []);
 
@@ -235,20 +278,49 @@ export default function AnnouncementsPage() {
     },
   };
 
-  if (loading)
+  const filteredAnnouncements = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    if (!term) return announcements;
+
+    return announcements.filter((ann) => {
+      return (
+        ann.title?.toLowerCase().includes(term) ||
+        ann.content?.toLowerCase().includes(term) ||
+        ann.priority?.toLowerCase().includes(term)
+      );
+    });
+  }, [announcements, searchTerm]);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="w-8 h-8 border-4 border-cota-green border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-header">Comunicados</h1>
-        <p className="page-subtitle">
-          Avisos, novidades e informações importantes da plataforma
-        </p>
+    <div className="space-y-5 pb-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="page-header">Comunicados</h1>
+          <p className="page-subtitle">
+            Avisos, novidades e informações importantes da plataforma
+          </p>
+        </div>
+
+        {announcements.length > 1 && (
+          <div className="relative w-full lg:w-80">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar comunicados..."
+              className="w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cota-green/20 focus:border-cota-green"
+            />
+          </div>
+        )}
       </div>
 
       {announcements.length === 0 ? (
@@ -261,51 +333,90 @@ export default function AnnouncementsPage() {
             As novidades serão publicadas aqui.
           </p>
         </div>
+      ) : filteredAnnouncements.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-gray-500 font-medium">
+            Nenhum comunicado encontrado
+          </p>
+          <p className="text-sm text-gray-400">
+            Tente buscar por outra palavra.
+          </p>
+        </div>
       ) : (
-        <div className="space-y-5">
-          {announcements.map((ann) => {
+        <div className="space-y-4">
+          {filteredAnnouncements.map((ann) => {
             const config = priorityConfig[ann.priority] || priorityConfig.normal;
             const Icon = config.icon;
+            const isOpen = openId === ann.id;
 
             return (
               <article
                 key={ann.id}
-                className={`relative overflow-hidden rounded-2xl border bg-white shadow-sm ${config.border}`}
+                className={`relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all ${config.border}`}
               >
-                <div className={`absolute left-0 top-0 h-full w-1.5 ${config.accent}`} />
+                <div
+                  className={`absolute left-0 top-0 h-full w-1.5 ${config.accent}`}
+                />
 
-                <div className="p-5 md:p-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${config.soft}`}>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(isOpen ? null : ann.id)}
+                  className="w-full text-left p-4 md:p-5 pl-5 md:pl-6 focus:outline-none focus:ring-2 focus:ring-cota-green/20"
+                >
+                  <div className="flex items-start gap-3 md:gap-4">
+                    <div
+                      className={`w-10 h-10 md:w-11 md:h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${config.soft}`}
+                    >
                       <Icon className={`w-5 h-5 ${config.color}`} />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
-                        <div>
-                          <h3 className="text-lg md:text-xl font-bold text-gray-900 leading-snug">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-base md:text-xl font-bold text-gray-900 leading-snug break-words">
                             {ann.title}
                           </h3>
+
                           <p className="text-xs md:text-sm text-gray-500 mt-1">
                             Publicado em {formatDateTime(ann.created_at)}
                           </p>
                         </div>
 
-                        <span
-                          className={`inline-flex items-center w-fit px-3 py-1 rounded-full text-xs font-semibold border ${config.badge}`}
-                        >
-                          {PRIORITY_LABELS[ann.priority] || "Normal"}
-                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span
+                            className={`hidden sm:inline-flex items-center w-fit px-3 py-1 rounded-full text-xs font-semibold border ${config.badge}`}
+                          >
+                            {PRIORITY_LABELS[ann.priority] || "Normal"}
+                          </span>
+
+                          <span className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+                            {isOpen ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4 md:p-5">
-                        <div className="prose prose-sm max-w-none prose-p:my-0 prose-headings:my-0 prose-li:my-0">
-                          {renderAnnouncementContent(ann.content, ann.title)}
-                        </div>
+                      {!isOpen && (
+                        <p className="text-sm text-gray-500 leading-6 mt-3 line-clamp-2">
+                          {getAnnouncementPreview(ann.content)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="px-4 md:px-5 pb-5 pl-5 md:pl-6">
+                    <div className="ml-0 md:ml-[60px] rounded-xl border border-gray-100 bg-gray-50/70 p-4 md:p-5">
+                      <div className="prose prose-sm max-w-none prose-p:my-0 prose-headings:my-0 prose-li:my-0">
+                        {renderAnnouncementContent(ann.content, ann.title)}
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </article>
             );
           })}

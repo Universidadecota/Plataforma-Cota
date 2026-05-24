@@ -279,13 +279,33 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-400">Nenhum comunicado</p>
                 </div>
               ) : (
-                announcements.map((ann) => (
-                  <div key={ann.id} className={`bg-white rounded-xl border p-4 min-w-0 overflow-hidden ${priorityColor[ann.priority]}`}>
-                    <p className="font-semibold text-sm leading-tight break-words">{ann.title}</p>
-                    <p className="text-xs mt-1 opacity-70 line-clamp-2 break-words">{ann.content}</p>
-                    <p className="text-xs mt-2 opacity-50">{formatDate(ann.created_at)}</p>
-                  </div>
-                ))
+                announcements.map((ann) => {
+                  const cleanPreview = String(ann.content || "")
+                    .replace(/^#{1,6}\s*/gm, "")
+                    .replace(/^[-*+]\s*/gm, "")
+                    .replace(/^\d+\.\s*/gm, "")
+                    .replace(/\n+/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+
+                  return (
+                    <Link
+                      key={ann.id}
+                      to="/announcements"
+                      className={`block bg-white rounded-xl border p-4 min-w-0 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all ${priorityColor[ann.priority]}`}
+                      title="Abrir comunicado"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm leading-tight break-words">{ann.title}</p>
+                          <p className="text-xs mt-1 opacity-70 line-clamp-2 break-words">{cleanPreview}</p>
+                          <p className="text-xs mt-2 opacity-50">{formatDate(ann.created_at)}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-50 flex-shrink-0 mt-0.5" />
+                      </div>
+                    </Link>
+                  );
+                })
               )}
             </div>
           </div>
