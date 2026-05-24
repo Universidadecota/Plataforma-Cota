@@ -119,14 +119,24 @@ export default function AdminDashboard() {
       
       const [u, c, a, s, o] = await Promise.all([
         directApiCall('user_profiles', 'GET', undefined, 'select=*&order=created_at.desc'),
-        directApiCall('courses', 'GET', undefined, 'select=*&order=title.asc'),
+        directApiCall('courses', 'GET', undefined, 'select=*&order=order_index.asc.nullslast,title.asc'),
         directApiCall('announcements', 'GET', undefined, 'select=*&order=created_at.desc'),
         directApiCall('whatsapp_scripts', 'GET', undefined, 'select=*&order=created_at.desc'),
         directApiCall('objections', 'GET', undefined, 'select=*&order=created_at.desc'),
       ]);
 
       setUsers(u || []);
-      setCourses(c || []);
+      const sortedCourses = (c || []).sort((a: any, b: any) => {
+        const orderA = Number(a.order_index ?? 9999);
+        const orderB = Number(b.order_index ?? 9999);
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.title || "").localeCompare(String(b.title || ""), "pt-BR", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      });
+
+      setCourses(sortedCourses);
       setAnnouncements(a || []);
       setScripts(s || []);
       setObjections(o || []);
@@ -208,7 +218,7 @@ export default function AdminDashboard() {
         )
       );
 
-      toast.success(role === "partner" ? "Parceiro aprovado com registro de auditoria! " : "Perfil atualizado! 🚀");
+      toast.success(role === "partner" ? "Parceiro aprovado com registro de auditoria! 🚀" : "Perfil atualizado! 🚀");
       await loadAll(false);
     } catch (error: any) {
       console.error("Erro ao atualizar perfil:", error);

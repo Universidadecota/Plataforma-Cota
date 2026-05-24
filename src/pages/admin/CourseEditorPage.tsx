@@ -128,17 +128,33 @@ export default function CourseEditorPage() {
       setEditCourseTitle(courseArr[0].title);
       setEditCourseDescription(courseArr[0].description || "");
 
-      const modulesArr = await directApiCall('modules', 'GET', undefined, `course_id=eq.${id}&select=*`);
-      const sortedModules = (modulesArr || []).sort((a: any, b: any) => 
-        String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
-      );
+      const modulesArr = await directApiCall('modules', 'GET', undefined, `course_id=eq.${id}&select=*&order=order_index.asc.nullslast,title.asc`);
+      const sortedModules = (modulesArr || []).sort((a: any, b: any) => {
+        const orderA = Number(a.order_index ?? 9999);
+        const orderB = Number(b.order_index ?? 9999);
+        if (orderA !== orderB) return orderA - orderB;
+
+        return String(a.title || "").trim().localeCompare(
+          String(b.title || "").trim(),
+          "pt-BR",
+          { numeric: true, sensitivity: "base" }
+        );
+      });
 
       const fullModules: ModuleWithLessons[] = [];
       for (const mod of sortedModules) {
-        const lessonsArr = await directApiCall('lessons', 'GET', undefined, `module_id=eq.${mod.id}&select=*`);
-        const sortedLessons = (lessonsArr || []).sort((a: any, b: any) => 
-          String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
-        );
+        const lessonsArr = await directApiCall('lessons', 'GET', undefined, `module_id=eq.${mod.id}&select=*&order=order_index.asc.nullslast,title.asc`);
+        const sortedLessons = (lessonsArr || []).sort((a: any, b: any) => {
+          const orderA = Number(a.order_index ?? 9999);
+          const orderB = Number(b.order_index ?? 9999);
+          if (orderA !== orderB) return orderA - orderB;
+
+          return String(a.title || "").trim().localeCompare(
+            String(b.title || "").trim(),
+            "pt-BR",
+            { numeric: true, sensitivity: "base" }
+          );
+        });
 
         const fullLessons: any[] = [];
         for (const les of sortedLessons) {
