@@ -204,12 +204,22 @@ function renderMarkdown(content: string) {
     if (line.startsWith("- ") || line.startsWith("* ") || line.startsWith("✅ ") || line.startsWith("✔ ")) {
       flushOrderedList(i);
       const cleanItem = line.replace(/^[-*]\s+/, "").replace(/^[✅✔]\s+/, "");
+      const checkboxMatch = cleanItem.match(/^\[( |x|X)\]\s+(.*)$/);
+
       listItems.push(
         <li key={i} className="leading-relaxed">
           {line.startsWith("✅") || line.startsWith("✔") ? (
             <span className="mr-1 text-cota-green">✓</span>
+          ) : checkboxMatch ? (
+            <span className={`mr-2 inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold ${
+              checkboxMatch[1].toLowerCase() === "x"
+                ? "border-cota-green bg-cota-green text-white"
+                : "border-gray-300 bg-white text-transparent"
+            }`}>
+              ✓
+            </span>
           ) : null}
-          {parseInline(cleanItem)}
+          {parseInline(checkboxMatch ? checkboxMatch[2] : cleanItem)}
         </li>
       );
       continue;
@@ -257,6 +267,33 @@ function renderMarkdown(content: string) {
         <h3 key={i} className="mb-3 mt-6 text-lg font-bold leading-tight text-cota-green">
           {parseInline(line.slice(4))}
         </h3>
+      );
+      continue;
+    }
+
+    if (line.startsWith("#### ")) {
+      elements.push(
+        <h4 key={i} className="mb-3 mt-5 text-base font-bold leading-tight text-cota-green-dark">
+          {parseInline(line.slice(5))}
+        </h4>
+      );
+      continue;
+    }
+
+    if (line.startsWith("##### ")) {
+      elements.push(
+        <h5 key={i} className="mb-2 mt-4 text-sm font-bold leading-tight text-gray-800">
+          {parseInline(line.slice(6))}
+        </h5>
+      );
+      continue;
+    }
+
+    if (line.startsWith("###### ")) {
+      elements.push(
+        <h6 key={i} className="mb-2 mt-4 text-xs font-black uppercase tracking-wider leading-tight text-gray-500">
+          {parseInline(line.slice(7))}
+        </h6>
       );
       continue;
     }
