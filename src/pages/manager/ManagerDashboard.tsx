@@ -891,7 +891,7 @@ export default function ManagerDashboard() {
     <button
       type="button"
       onClick={onClick}
-      className="text-left rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="min-w-0 text-left rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</p>
@@ -944,7 +944,7 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <MetricCard title="Leads na visão" value={metrics.total} subtitle="base filtrada" icon={Users} />
         <MetricCard title="Sem atendimento" value={metrics.semAtendimento} subtitle="novos sem contato" icon={AlertTriangle} accent="text-red-500" onClick={() => setStatusFilter("Novo")} />
         <MetricCard title="Propostas" value={metrics.propostas} subtitle="simulações/propostas" icon={Target} accent="text-purple-500" />
@@ -1188,28 +1188,28 @@ export default function ManagerDashboard() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl bg-[#0a1a15] p-5 text-white">
+            <div className="min-w-0 rounded-2xl bg-[#0a1a15] p-5 text-white">
               <p className="text-sm text-gray-300">EPSA líquido previsto</p>
               <p className="mt-2 text-lg sm:text-xl lg:text-2xl font-black leading-snug break-words">
                 {formatCurrency(financialMetrics.epsaPrevisto)}
               </p>
             </div>
 
-            <div className="rounded-2xl bg-[#b8995a] p-5 text-white">
+            <div className="min-w-0 rounded-2xl bg-[#b8995a] p-5 text-white">
               <p className="text-sm text-white/80">Parceiro previsto</p>
               <p className="mt-2 text-lg sm:text-xl lg:text-2xl font-black leading-snug break-words">
                 {formatCurrency(financialMetrics.parceiroPrevisto)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5">
+            <div className="min-w-0 rounded-2xl border border-amber-100 bg-amber-50 p-5">
               <p className="text-sm text-amber-700">Reserva tráfego/CAC</p>
               <p className="mt-2 text-lg sm:text-xl lg:text-2xl font-black leading-snug break-words text-amber-900">
                 {formatCurrency(financialMetrics.trafegoReservado)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-purple-100 bg-purple-50 p-5">
+            <div className="min-w-0 rounded-2xl border border-purple-100 bg-purple-50 p-5">
               <p className="text-sm text-purple-700">Atores internos</p>
               <p className="mt-2 text-lg sm:text-xl lg:text-2xl font-black leading-snug break-words text-purple-900">
                 {formatCurrency(financialMetrics.atoresInternosPrevisto)}
@@ -1220,7 +1220,7 @@ export default function ManagerDashboard() {
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <p className="text-sm font-bold text-gray-800">EPSA já recebido</p>
-              <p className="mt-1 text-xl font-black text-gray-900">
+              <p className="mt-1 text-lg xl:text-xl font-black text-gray-900 leading-snug break-words">
                 {formatCurrency(financialMetrics.epsaRecebido)}
               </p>
               <p className="mt-1 text-xs text-gray-500">Splits marcados como recebidos/liberados/pagos.</p>
@@ -1228,7 +1228,7 @@ export default function ManagerDashboard() {
 
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <p className="text-sm font-bold text-gray-800">Total pago</p>
-              <p className="mt-1 text-xl font-black text-gray-900">
+              <p className="mt-1 text-lg xl:text-xl font-black text-gray-900 leading-snug break-words">
                 {formatCurrency(financialMetrics.totalPago)}
               </p>
               <p className="mt-1 text-xs text-gray-500">Valores já baixados como pagos.</p>
@@ -1236,7 +1236,7 @@ export default function ManagerDashboard() {
 
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <p className="text-sm font-bold text-gray-800">Fechamento imobiliário</p>
-              <p className="mt-1 text-xl font-black text-gray-900">
+              <p className="mt-1 text-lg xl:text-xl font-black text-gray-900 leading-snug break-words">
                 {formatCurrency(financialMetrics.imovelTotal)}
               </p>
               <p className="mt-1 text-xs text-gray-500">30% para parceiro ou CAC, conforme origem.</p>

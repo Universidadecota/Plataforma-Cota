@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Persona = { id: string; name: string; description: string; greeting: string };
+type Difficulty = "easy" | "medium" | "hard";
 
 const PERSONAS: Persona[] = [
   {
@@ -69,30 +70,63 @@ const PERSONAS: Persona[] = [
   }
 ];
 
+
+function createMessageId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getAuthToken() {
+  let token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  try {
+    const storageKey = Object.keys(localStorage).find(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+    );
+
+    if (storageKey) {
+      const sessionData = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      if (sessionData?.access_token) token = sessionData.access_token;
+    }
+  } catch (err) {
+    console.warn("Não foi possível recuperar sessão local do Supabase:", err);
+  }
+
+  return token;
+}
+
 export default function AISimulatorPage() {
   const { user } = useAuthStore();
   const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMessages([{ id: Date.now().toString(), role: "assistant", content: activePersona.greeting }]);
+    setMessages([{ id: createMessageId(), role: "assistant", content: activePersona.greeting }]);
+    setInput("");
   }, [activePersona]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     if (!input.trim()) return;
 
     const userText = input.trim();
-    const userMessage: Message = { id: Date.now().toString(), role: "user", content: userText };
+    const userMessage: Message = { id: createMessageId(), role: "user", content: userText };
     
-    const currentHistory = [...messages]; 
+    const historyForApi = [...messages, userMessage]
+      .slice(-14)
+      .map((message) => ({ role: message.role, content: message.content })); 
     
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
@@ -100,15 +134,7 @@ export default function AISimulatorPage() {
 
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      let token = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      try {
-        const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
-        if (storageKey) {
-          const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
-          if (sessionData?.access_token) token = sessionData.access_token;
-        }
-      } catch (err) {}
+      const token = getAuthToken();
 
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
         method: 'POST',
@@ -118,8 +144,9 @@ export default function AISimulatorPage() {
         },
         body: JSON.stringify({
           persona: activePersona,
-          userText: userText,
-          history: currentHistory
+          userText,
+          history: historyForApi,
+          difficulty
         })
       });
 
@@ -130,19 +157,38 @@ export default function AISimulatorPage() {
 
       const data = await response.json();
 
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: data.reply }]);
+      if (!data?.reply || typeof data.reply !== "string") {
+        throw new Error("A Edge Function não retornou uma resposta válida.");
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: createMessageId(), role: "assistant", content: data.reply.trim() },
+      ]);
+
+      if (data?.fallback) {
+        toast.info("Resposta gerada em modo de segurança. O simulador continuou a conversa.");
+      }
       
     } catch (error) {
       console.error("DETALHES DO ERRO DA IA:", error);
       toast.error("Erro ao conectar com o simulador.");
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "⚠️ (Sistema: Conexão com o simulador falhou.)" }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createMessageId(),
+          role: "assistant",
+          content: "⚠️ Sistema: não consegui continuar a simulação agora. Tente enviar novamente em alguns instantes.",
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const resetChat = () => {
-    setMessages([{ id: Date.now().toString(), role: "assistant", content: activePersona.greeting }]);
+    setMessages([{ id: createMessageId(), role: "assistant", content: activePersona.greeting }]);
+    setInput("");
     toast.info("Simulação reiniciada.");
   };
 
@@ -170,6 +216,32 @@ export default function AISimulatorPage() {
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <span>Escolha um perfil e treine a sua abordagem como se estivesse no WhatsApp.</span>
             </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+              Nível da simulação
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "easy", label: "Leve" },
+                { value: "medium", label: "Real" },
+                { value: "hard", label: "Difícil" },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDifficulty(item.value as Difficulty)}
+                  className={`rounded-lg px-2 py-2 text-xs font-bold transition-colors ${
+                    difficulty === item.value
+                      ? "bg-cota-green text-white"
+                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Carrossel de Clientes (Rola na horizontal no mobile e na vertical no PC) */}
@@ -222,7 +294,7 @@ export default function AISimulatorPage() {
                     : "bg-white border border-gray-100 text-gray-700 rounded-tl-sm"
                 }`}>
                   {msg.role === "assistant" && <Bot className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />}
-                  <p className="text-sm leading-relaxed break-words min-w-0">{msg.content}</p>
+                  <p className="text-sm leading-relaxed break-words min-w-0 whitespace-pre-wrap">{msg.content}</p>
                   {msg.role === "user" && <User className="w-5 h-5 text-white/70 flex-shrink-0 mt-0.5" />}
                 </div>
               </div>
