@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 import { Users, Send, Activity, Clock, ShieldCheck, Mail, HelpCircle, MessageSquare, Edit2, X, Check, Filter, Wallet, TrendingUp, CheckCircle2 } from "lucide-react";
@@ -12,17 +12,37 @@ type Lead = {
   observacoes: string;
   status: string;
   criado_em: string;
-  // NOVOS CAMPOS PARA A WALLET
+  etapa_funil?: string;
+  temperatura?: string;
+  prioridade?: string;
+
+  // Campos financeiros / wallet
   valor_carta?: number;
+  comissao_epsa?: number;
   comissao_parceiro?: number;
   status_pagamento?: string;
+
+  // Origem e governança
+  origem?: string;
   origem_detalhada?: string;
+  lead_source_type?: string;
+  lead_source_platform?: string;
+  lead_source_channel?: string;
+  lead_source_medium?: string;
+  lead_source_label?: string;
+  partner_id?: string;
+  created_by?: string;
+  created_by_role?: string;
+
+  // LGPD
   base_legal?: string;
   canal_autorizado?: string;
   lgpd_declarado?: boolean;
   lgpd_declarado_em?: string;
   lgpd_declarado_por?: string;
   privacy_notice_version?: string;
+  contact_authorized?: boolean;
+  contact_authorized_channel?: string;
 };
 
 export default function PartnerDashboard() {
@@ -33,6 +53,10 @@ export default function PartnerDashboard() {
   const [emailLead, setEmailLead] = useState("");
   const [motivoLead, setMotivoLead] = useState("Recusado pelo banco");
   const [observacoesLead, setObservacoesLead] = useState("");
+  const [valorCartaLead, setValorCartaLead] = useState("");
+  const [parcelaDesejadaLead, setParcelaDesejadaLead] = useState("");
+  const [temLanceLead, setTemLanceLead] = useState("Não informado");
+  const [valorLanceLead, setValorLanceLead] = useState("");
 
   // Campos de governança LGPD por lead
   const [origemDetalhada, setOrigemDetalhada] = useState("Imobiliária");
@@ -44,6 +68,10 @@ export default function PartnerDashboard() {
   const [saving, setSaving] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [quickFilter, setQuickFilter] = useState<"all" | "new" | "progress" | "closed" | "pending_payment" | "paid">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Estados para Edição na Tabela
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -91,12 +119,89 @@ export default function PartnerDashboard() {
     return true;
   };
 
+
+  const normalizePhone = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+
+    if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+      digits = digits.slice(2);
+    }
+
+    return digits;
+  };
+
+  const isValidBrazilianPhone = (value: string) => {
+    const digits = normalizePhone(value);
+    return digits.length === 10 || digits.length === 11;
+  };
+
+  const isValidEmail = (value: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
+  };
+
+  const parseMoney = (value: string) => {
+    const cleaned = String(value || "")
+      .replace(/[^\d,.-]/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const mapLeadFromUnifiedTable = (item: any): Lead => ({
+    id: item.id,
+    nome: item.name || item.nome || "Sem nome",
+    telefone: item.phone || item.telefone || "",
+    email: item.email || "",
+    motivo: item.motivo || item.interest || item.interesse || "Não informado",
+    observacoes: item.observacoes || item.notes || "",
+    status: item.etapa_funil || item.status || "Novo",
+    criado_em: item.created_at || item.criado_em,
+    etapa_funil: item.etapa_funil || item.status || "Novo",
+    temperatura: item.temperatura || "Morno",
+    prioridade: item.prioridade || "Normal",
+    valor_carta: Number(item.valor_carta || item.estimated_letter_value || 0),
+    comissao_epsa: Number(item.comissao_epsa || 0),
+    comissao_parceiro: Number(item.comissao_parceiro || 0),
+    status_pagamento: item.status_pagamento || "Pendente",
+    origem: item.origin || item.origem || "Parceiro",
+    origem_detalhada: item.origem_detalhada,
+    lead_source_type: item.lead_source_type || "partner",
+    lead_source_platform: item.lead_source_platform,
+    lead_source_channel: item.lead_source_channel,
+    lead_source_medium: item.lead_source_medium,
+    lead_source_label: item.lead_source_label || item.origem_detalhada || "Parceiro EPSA",
+    partner_id: item.partner_id,
+    created_by: item.created_by,
+    created_by_role: item.created_by_role,
+    base_legal: item.base_legal,
+    canal_autorizado: item.canal_autorizado,
+    lgpd_declarado: item.lgpd_declarado,
+    lgpd_declarado_em: item.lgpd_declarado_em,
+    lgpd_declarado_por: item.lgpd_declarado_por,
+    privacy_notice_version: item.privacy_notice_version,
+    contact_authorized: item.contact_authorized,
+    contact_authorized_channel: item.contact_authorized_channel,
+  });
+
   const loadLeads = async () => {
     if (!user) return;
+
     try {
       setLoading(true);
-      const data = await directApiCall('pistas', 'GET', undefined, `partner_id=eq.${user.id}&order=criado_em.desc`);
-      setLeads(data || []);
+
+      // TABELA ÚNICA:
+      // A partir desta versão, o Portal do Parceiro lê apenas public.leads.
+      // A tabela antiga public.pistas deve ficar apenas como legado/backup.
+      const data = await directApiCall(
+        "leads",
+        "GET",
+        undefined,
+        `partner_id=eq.${user.id}&select=*&order=created_at.desc`
+      );
+
+      setLeads((data || []).map(mapLeadFromUnifiedTable));
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
       toast.error("Erro ao sincronizar seus leads.");
@@ -111,8 +216,26 @@ export default function PartnerDashboard() {
 
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nomeLead.trim() || !telefoneLead.trim()) {
-      toast.error("Preencha o nome e o telefone do cliente.");
+
+    const nome = nomeLead.trim();
+    const telefone = normalizePhone(telefoneLead);
+    const email = emailLead.trim().toLowerCase();
+    const valorCarta = parseMoney(valorCartaLead);
+    const parcelaDesejada = parseMoney(parcelaDesejadaLead);
+    const valorLance = parseMoney(valorLanceLead);
+
+    if (!nome) {
+      toast.error("Informe o nome completo do cliente.");
+      return;
+    }
+
+    if (!isValidBrazilianPhone(telefoneLead)) {
+      toast.error("Informe um telefone/WhatsApp válido com DDD. Exemplo: 21999999999.");
+      return;
+    }
+
+    if (!email || !isValidEmail(email)) {
+      toast.error("Informe um e-mail válido do cliente. Exemplo: cliente@email.com.");
       return;
     }
 
@@ -120,25 +243,68 @@ export default function PartnerDashboard() {
       toast.error("Confirme a origem, a base legal e a declaração LGPD do lead.");
       return;
     }
-    
+
     try {
       setSaving(true);
-      await directApiCall('pistas', 'POST', {
-        nome: nomeLead.trim(),
-        telefone: telefoneLead.trim(),
-        email: emailLead.trim(),
+      await directApiCall("leads", "POST", {
+        // Campos principais da tabela única public.leads
+        name: nome,
+        phone: telefone,
+        email,
         motivo: motivoLead,
-        observacoes: observacoesLead.trim(),
-        partner_id: user?.id,
-        origem: "Parceiro",
+        observacoes: observacoesLead.trim() || null,
+        estimated_letter_value: valorCarta > 0 ? valorCarta : null,
+        desired_installment: parcelaDesejada > 0 ? parcelaDesejada : null,
+        has_bid_value: temLanceLead === "Sim",
+        bid_value: valorLance > 0 ? valorLance : null,
+
+        // Origem do lead
+        origin: "Parceiro",
         origem_detalhada: origemDetalhada,
+        lead_source_type: "partner",
+        lead_source_platform: "partner_portal",
+        lead_source_channel: canalAutorizado,
+        lead_source_medium: "partner_referral",
+        lead_source_label: origemDetalhada || "Parceiro EPSA",
+        partner_id: user?.id,
+        created_by: user?.id,
+        created_by_role: "partner",
+
+        // Funil inicial
+        status: "Novo",
+        etapa_funil: "Novo",
+        temperatura: "Morno",
+        prioridade: "Normal",
+
+        // LGPD e governança
         base_legal: baseLegal,
         canal_autorizado: canalAutorizado,
         lgpd_declarado: true,
         lgpd_declarado_em: new Date().toISOString(),
         lgpd_declarado_por: user?.id,
         privacy_notice_version: "epsa-privacidade-v1",
-        status: "Novo"
+        contact_authorized: true,
+        contact_authorized_channel: canalAutorizado,
+
+        // Financeiro inicial
+        valor_carta: valorCarta > 0 ? valorCarta : 0,
+        comissao_epsa: valorCarta > 0 ? Number((valorCarta * 0.035).toFixed(2)) : 0,
+        comissao_parceiro: 0,
+        status_pagamento: "Pendente",
+
+        // Auditoria futura/automações
+        raw_payload: {
+          origem: "partner_dashboard",
+          parceiro_id: user?.id,
+          parceiro_nome: user?.full_name || user?.username || null,
+          origem_detalhada: origemDetalhada,
+          base_legal: baseLegal,
+          canal_autorizado: canalAutorizado,
+          valor_carta: valorCarta || null,
+          parcela_desejada: parcelaDesejada || null,
+          tem_lance: temLanceLead,
+          valor_lance: valorLance || null,
+        },
       });
       toast.success("Lead cadastrado com sucesso na EPSA! 🚀");
       setNomeLead(""); 
@@ -146,6 +312,10 @@ export default function PartnerDashboard() {
       setEmailLead("");
       setMotivoLead("Recusado pelo banco");
       setObservacoesLead("");
+      setValorCartaLead("");
+      setParcelaDesejadaLead("");
+      setTemLanceLead("Não informado");
+      setValorLanceLead("");
       setOrigemDetalhada("Imobiliária");
       setBaseLegal("Cliente autorizou compartilhamento com a EPSA");
       setCanalAutorizado("WhatsApp");
@@ -173,9 +343,9 @@ export default function PartnerDashboard() {
   const handleSaveEdit = async (id: string) => {
     try {
       setSavingEdit(true);
-      await directApiCall('pistas', 'PATCH', {
+      await directApiCall('leads', 'PATCH', {
         motivo: editMotivo,
-        observacoes: editObservacoes.trim()
+        observacoes: editObservacoes.trim() || null
       }, `id=eq.${id}`);
       
       toast.success("Lead atualizado com sucesso!");
@@ -217,9 +387,54 @@ export default function PartnerDashboard() {
     .filter(l => l.status === 'Fechado' && l.status_pagamento === 'Liberado')
     .reduce((acc, l) => acc + (l.comissao_parceiro || 0), 0);
 
-  const filteredLeads = statusFilter 
-    ? leads.filter(l => l.status?.toLowerCase() === statusFilter.toLowerCase())
-    : leads;
+  const filteredLeads = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return leads.filter((lead) => {
+      const status = lead.status || "Novo";
+      const pagamento = lead.status_pagamento || "Pendente";
+
+      const matchesStatus = statusFilter
+        ? status.toLowerCase() === statusFilter.toLowerCase()
+        : true;
+
+      const matchesQuickFilter =
+        quickFilter === "all" ||
+        (quickFilter === "new" && status === "Novo") ||
+        (quickFilter === "progress" && ["Em atendimento", "Primeiro contato", "Diagnóstico", "Simulação enviada", "Proposta", "Follow-up"].includes(status)) ||
+        (quickFilter === "closed" && status === "Fechado") ||
+        (quickFilter === "pending_payment" && pagamento !== "Pago") ||
+        (quickFilter === "paid" && pagamento === "Pago");
+
+      const matchesSearch = term
+        ? `${lead.nome} ${lead.telefone} ${lead.email || ""} ${lead.motivo || ""} ${lead.observacoes || ""}`
+            .toLowerCase()
+            .includes(term)
+        : true;
+
+      return matchesStatus && matchesQuickFilter && matchesSearch;
+    });
+  }, [leads, statusFilter, quickFilter, searchTerm]);
+
+  const partnerQuickCounts = useMemo(() => ({
+    all: leads.length,
+    new: leads.filter((lead) => lead.status === "Novo").length,
+    progress: leads.filter((lead) => ["Em atendimento", "Primeiro contato", "Diagnóstico", "Simulação enviada", "Proposta", "Follow-up"].includes(lead.status)).length,
+    closed: leads.filter((lead) => lead.status === "Fechado").length,
+    pending_payment: leads.filter((lead) => (lead.status_pagamento || "Pendente") !== "Pago").length,
+    paid: leads.filter((lead) => lead.status_pagamento === "Pago").length,
+  }), [leads]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredLeads.slice(startIndex, startIndex + pageSize);
+  }, [filteredLeads, pageSize, safeCurrentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, quickFilter, pageSize]);
 
   return (
     <div className="w-full max-w-6xl mx-auto px-2 sm:px-4 pb-10 min-w-0">
@@ -327,15 +542,45 @@ export default function PartnerDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
               <div>
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">Nome do Cliente *</label>
-                <input type="text" value={nomeLead} onChange={(e) => setNomeLead(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
+                <input
+                  type="text"
+                  value={nomeLead}
+                  onChange={(e) => setNomeLead(e.target.value)}
+                  required
+                  minLength={3}
+                  placeholder="Ex.: João Carlos da Silva"
+                  title="Informe o nome completo do cliente."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Use nome e sobrenome para facilitar a identificação no atendimento.</p>
               </div>
               <div>
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1">WhatsApp / Telefone *</label>
-                <input type="text" value={telefoneLead} onChange={(e) => setTelefoneLead(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
+                <input
+                  type="tel"
+                  value={telefoneLead}
+                  onChange={(e) => setTelefoneLead(e.target.value)}
+                  required
+                  inputMode="numeric"
+                  pattern="^(\\+?55\\s?)?\\(?\\d{2}\\)?\\s?9?\\d{4}[-\\s]?\\d{4}$"
+                  placeholder="Ex.: 21999999999"
+                  title="Informe DDD + número. Exemplo: 21999999999."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Obrigatório. Informe DDD + número, sem letras.</p>
               </div>
               <div>
-                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><Mail className="w-3 h-3"/> E-mail do Cliente</label>
-                <input type="email" value={emailLead} onChange={(e) => setEmailLead(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30" />
+                <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><Mail className="w-3 h-3"/> E-mail do Cliente *</label>
+                <input
+                  type="email"
+                  value={emailLead}
+                  onChange={(e) => setEmailLead(e.target.value)}
+                  required
+                  placeholder="Ex.: cliente@email.com"
+                  title="Informe um e-mail válido. Exemplo: cliente@email.com."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Obrigatório para rastreabilidade e conferência do atendimento.</p>
               </div>
               <div>
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><HelpCircle className="w-3 h-3"/> Motivo do Encaminhamento *</label>
@@ -347,10 +592,80 @@ export default function PartnerDashboard() {
                   <option value="Outros motivos">Outros motivos</option>
                 </select>
               </div>
+              <div className="md:col-span-2 border border-blue-100 bg-blue-50/40 rounded-xl p-4">
+                <div className="mb-4">
+                  <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wide">Informações de crédito de interesse</h3>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">Preencha o que souber. Esses dados ajudam o SDR/consultor a fazer o primeiro diagnóstico sem começar do zero.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Valor desejado da carta</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={valorCartaLead}
+                      onChange={(e) => setValorCartaLead(e.target.value)}
+                      placeholder="Ex.: 300000"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white"
+                    />
+                    <p className="mt-1 text-[10px] text-gray-400">Valor aproximado do crédito desejado.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Parcela confortável</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={parcelaDesejadaLead}
+                      onChange={(e) => setParcelaDesejadaLead(e.target.value)}
+                      placeholder="Ex.: 1500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white"
+                    />
+                    <p className="mt-1 text-[10px] text-gray-400">Quanto o cliente declarou conseguir pagar por mês.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Tem valor para lance?</label>
+                    <select
+                      value={temLanceLead}
+                      onChange={(e) => setTemLanceLead(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white"
+                    >
+                      <option value="Não informado">Não informado</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-gray-400">Não prometa contemplação. É apenas diagnóstico.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1.5">Valor reservado para lance</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={valorLanceLead}
+                      onChange={(e) => setValorLanceLead(e.target.value)}
+                      placeholder="Ex.: 30000"
+                      disabled={temLanceLead === "Não"}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 bg-white disabled:bg-gray-100"
+                    />
+                    <p className="mt-1 text-[10px] text-gray-400">Preencha somente se o cliente informou reserva.</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="flex text-xs font-bold text-gray-600 uppercase mb-1.5 items-center gap-1"><MessageSquare className="w-3 h-3"/> Observações Adicionais</label>
-                <textarea value={observacoesLead} onChange={(e) => setObservacoesLead(e.target.value)} maxLength={100} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 resize-none" />
-                <div className="flex justify-end mt-1"><span className={`text-[10px] font-medium ${observacoesLead.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>{observacoesLead.length} / 100</span></div>
+                <textarea
+                  value={observacoesLead}
+                  onChange={(e) => setObservacoesLead(e.target.value)}
+                  maxLength={300}
+                  rows={3}
+                  placeholder="Ex.: Cliente foi recusado no financiamento por renda informal. Busca imóvel de até R$ 300 mil, tem pressa moderada e autorizou contato pelo WhatsApp."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-cota-green focus:ring-1 focus:ring-cota-green/30 resize-none"
+                />
+                <div className="flex justify-end mt-1"><span className={`text-[10px] font-medium ${observacoesLead.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>{observacoesLead.length} / 300</span></div>
               </div>
 
               <div className="md:col-span-2 border border-[#b8995a]/30 bg-[#b8995a]/5 rounded-xl p-4">
@@ -424,16 +739,76 @@ export default function PartnerDashboard() {
 
         {/* Tabela Original com a Nova Coluna */}
         <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <div>
-              <h2 className="font-bold text-gray-800 text-sm">{statusFilter ? `Leads: ${statusFilter}` : "Todos os Leads Enviados"}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Rastreabilidade em tempo real</p>
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-bold text-gray-800 text-sm">{statusFilter ? `Leads: ${statusFilter}` : "Leads enviados para a EPSA"}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Acompanhe seus próprios leads, andamento comercial e previsão de repasse.</p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar cliente, telefone ou e-mail..."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs focus:border-cota-green focus:outline-none sm:w-72"
+                />
+
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 focus:border-cota-green focus:outline-none"
+                >
+                  <option value={10}>10 por página</option>
+                  <option value={20}>20 por página</option>
+                  <option value={50}>50 por página</option>
+                </select>
+
+                {(statusFilter || quickFilter !== "all" || searchTerm) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter(null);
+                      setQuickFilter("all");
+                      setSearchTerm("");
+                    }}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
+                  >
+                    <Filter className="w-3 h-3" /> Limpar
+                  </button>
+                )}
+              </div>
             </div>
-            {statusFilter && (
-              <button onClick={() => setStatusFilter(null)} className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors">
-                <Filter className="w-3 h-3" /> Limpar Filtro
-              </button>
-            )}
+
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {[
+                ["all", "Todos", partnerQuickCounts.all],
+                ["new", "Novos", partnerQuickCounts.new],
+                ["progress", "Em andamento", partnerQuickCounts.progress],
+                ["closed", "Fechados", partnerQuickCounts.closed],
+                ["pending_payment", "Repasse pendente", partnerQuickCounts.pending_payment],
+                ["paid", "Pagos", partnerQuickCounts.paid],
+              ].map(([key, label, total]: any) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setQuickFilter(key)}
+                  className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                    quickFilter === key
+                      ? "border-cota-green bg-cota-green text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-cota-green hover:text-cota-green"
+                  }`}
+                >
+                  {label} <span className="ml-1 opacity-70">{total}</span>
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500">
+              Exibindo {filteredLeads.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+              -{Math.min(safeCurrentPage * pageSize, filteredLeads.length)} de {filteredLeads.length} leads filtrados.
+            </p>
           </div>
           
           {loading ? (
@@ -456,7 +831,7 @@ export default function PartnerDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 text-sm">
-                  {filteredLeads.map(lead => (
+                  {paginatedLeads.map(lead => (
                     <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 align-top">
                         <p className="font-medium text-gray-800 whitespace-nowrap">{lead.nome}</p>
@@ -522,6 +897,31 @@ export default function PartnerDashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {filteredLeads.length > pageSize && (
+            <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-500">Página {safeCurrentPage} de {totalPages}</p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage <= 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 disabled:opacity-40"
+                >
+                  Próxima
+                </button>
+              </div>
             </div>
           )}
         </div>

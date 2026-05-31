@@ -16,6 +16,7 @@ import {
   Filter,
   MessageCircle,
   Phone,
+  Plus,
   Search,
   Target,
   TrendingUp,
@@ -104,6 +105,7 @@ const SOURCE_TYPE_OPTIONS = [
 ];
 
 type DateFilter = "all" | "today" | "7d" | "30d" | "month";
+type QuickFilter = "all" | "new" | "unattended" | "overdue" | "hot" | "proposals" | "partners" | "paid" | "unassigned";
 
 const FUNNEL_STAGES = [
   "Novo",
@@ -153,6 +155,7 @@ export default function ManagerDashboard() {
 
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
+  const isConsultantView = !isAdmin && !isManager;
 
   const [leads, setLeads] = useState<UnifiedLead[]>([]);
   const [financialSplits, setFinancialSplits] = useState<FinancialSplit[]>([]);
@@ -167,6 +170,9 @@ export default function ManagerDashboard() {
   const [dateFilter, setDateFilter] = useState<DateFilter>("30d");
   const [minhaBaseFilter, setMinhaBaseFilter] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [editingFinId, setEditingFinId] = useState<string | null>(null);
   const [finValorCarta, setFinValorCarta] = useState(0);
@@ -176,6 +182,22 @@ export default function ManagerDashboard() {
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [actionText, setActionText] = useState("");
   const [actionDate, setActionDate] = useState("");
+
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const [creatingLead, setCreatingLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState("");
+  const [newLeadPhone, setNewLeadPhone] = useState("");
+  const [newLeadEmail, setNewLeadEmail] = useState("");
+  const [newLeadSourceType, setNewLeadSourceType] = useState("manual");
+  const [newLeadSourcePlatform, setNewLeadSourcePlatform] = useState("");
+  const [newLeadMotivo, setNewLeadMotivo] = useState("");
+  const [newLeadValorCarta, setNewLeadValorCarta] = useState("");
+  const [newLeadParcela, setNewLeadParcela] = useState("");
+  const [newLeadTemLance, setNewLeadTemLance] = useState("Não informado");
+  const [newLeadValorLance, setNewLeadValorLance] = useState("");
+  const [newLeadPrazo, setNewLeadPrazo] = useState("");
+  const [newLeadObservacoes, setNewLeadObservacoes] = useState("");
+  const [newLeadAssignToMe, setNewLeadAssignToMe] = useState(true);
 
   const directApiCall = async (tableName: string, method: string, body?: any, query?: string) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -250,8 +272,12 @@ export default function ManagerDashboard() {
     try {
       setLoading(true);
 
-      const [pistasData, leadsData, equipeData, splitData] = await Promise.all([
-        directApiCall("pistas", "GET", undefined, "order=criado_em.desc"),
+      /*
+        FASE 2 — Tabela única de leads:
+        A partir daqui o painel deixa de buscar public.pistas.
+        Todo lead operacional deve estar em public.leads.
+      */
+      const [leadsData, equipeData, splitData] = await Promise.all([
         directApiCall("leads", "GET", undefined, "order=created_at.desc").catch(() => []),
         directApiCall(
           "user_profiles",
@@ -272,65 +298,32 @@ export default function ManagerDashboard() {
         )
       );
 
-      const mappedPistas: UnifiedLead[] = (pistasData || []).map((p: any) => ({
-        id: p.id,
-        nome: p.nome,
-        telefone: p.telefone,
-        email: p.email,
-        motivo: p.motivo || p.interesse,
-        observacoes: p.observacoes,
-        status: p.status || "Novo",
-        etapa_funil: p.etapa_funil || p.status || "Novo",
-        temperatura: p.temperatura || "Morno",
-        prioridade: p.prioridade || "Normal",
-        origem: p.origem || "Parceiro",
-        origem_detalhada: p.origem_detalhada,
-        data_criacao: p.criado_em,
-        updated_at: p.atualizado_em,
-        tabela_fonte: "pistas",
-        vendedor_id: p.vendedor_id || p.atribuido_a,
-        gestor_id: p.gestor_id,
-        partner_id: p.partner_id,
-        lead_source_type: p.lead_source_type || (p.partner_id ? "partner" : "epsa_base"),
-        lead_source_label: p.lead_source_label || p.origem_detalhada || p.origem || "Parceiro",
-        lead_source_id: p.lead_source_id || p.partner_id,
-        sdr_id: p.sdr_id,
-        closer_id: p.closer_id || p.vendedor_id || p.atribuido_a,
-        valor_carta: Number(p.valor_carta || p.valor_da_letra_estimado || 0),
-        comissao_epsa: Number(p.comissao_epsa || Number(p.valor_carta || 0) * 0.035 || 0),
-        comissao_parceiro: Number(p.comissao_parceiro || 0),
-        status_pagamento: p.status_pagamento || "Pendente",
-        ultimo_contato_em: p.ultimo_contato_em,
-        proxima_acao: p.proxima_acao,
-        proxima_acao_em: p.proxima_acao_em,
-        motivo_perda: p.motivo_perda,
-      }));
-
       const mappedLeads: UnifiedLead[] = (leadsData || []).map((l: any) => ({
         id: l.id,
         nome: l.name || l.nome || "Sem nome",
         telefone: l.phone || l.telefone || "",
         email: l.email,
         motivo: l.motivo || l.interest || "Captação interna",
-        observacoes: l.observacoes,
+        observacoes: l.observacoes || l.notes,
         status: l.status || "Novo",
         etapa_funil: l.etapa_funil || l.status || "Novo",
-        temperatura: l.temperatura || "Morno",
-        prioridade: l.prioridade || "Normal",
-        origem: l.origin || l.origem || "Interno",
+        temperatura: l.temperatura || l.temperature || "Morno",
+        prioridade: l.prioridade || l.priority || "Normal",
+        origem: l.lead_source_label || l.origin || l.origem || "Base EPSA",
         origem_detalhada: l.origem_detalhada,
         data_criacao: l.created_at,
         updated_at: l.updated_at,
         tabela_fonte: "leads",
         vendedor_id: l.vendedor_id || l.assigned_to,
         gestor_id: l.gestor_id,
+        partner_id: l.partner_id,
         lead_source_type: l.lead_source_type || "epsa_base",
         lead_source_label: l.lead_source_label || l.origin || "Base EPSA",
         lead_source_id: l.lead_source_id,
         sdr_id: l.sdr_id,
         closer_id: l.closer_id || l.vendedor_id || l.assigned_to,
         valor_carta: Number(l.valor_carta || l.estimated_letter_value || 0),
-        comissao_epsa: Number(l.comissao_epsa || Number(l.valor_carta || 0) * 0.035 || 0),
+        comissao_epsa: Number(l.comissao_epsa || Number(l.valor_carta || l.estimated_letter_value || 0) * 0.035 || 0),
         comissao_parceiro: Number(l.comissao_parceiro || 0),
         status_pagamento: l.status_pagamento || "Pendente",
         ultimo_contato_em: l.ultimo_contato_em || l.last_follow_up_at || l.first_contact_at,
@@ -339,13 +332,13 @@ export default function ManagerDashboard() {
         motivo_perda: l.motivo_perda || l.loss_reason,
       }));
 
-      const unified = [...mappedPistas, ...mappedLeads].sort(
+      const unified = mappedLeads.sort(
         (a, b) => new Date(b.data_criacao).getTime() - new Date(a.data_criacao).getTime()
       );
 
       setLeads(unified);
     } catch (error) {
-      console.error("Erro ao carregar o CRM unificado:", error);
+      console.error("Erro ao carregar o CRM de leads:", error);
       toast.error("Erro ao sincronizar base de dados EPSA.");
     } finally {
       setLoading(false);
@@ -356,7 +349,42 @@ export default function ManagerDashboard() {
     loadAllData();
   }, []);
 
-  const filteredLeads = useMemo(() => {
+  const isLeadClosed = (lead: UnifiedLead) =>
+    ["Fechado", "Perdido"].includes(lead.etapa_funil) || ["Fechado", "Perdido"].includes(lead.status);
+
+  const isLeadUnattended = (lead: UnifiedLead) =>
+    (lead.etapa_funil === "Novo" || lead.status === "Novo") && !lead.ultimo_contato_em;
+
+  const isLeadOverdue = (lead: UnifiedLead) => {
+    if (isLeadClosed(lead)) return false;
+
+    if (lead.proxima_acao_em) {
+      return new Date(lead.proxima_acao_em).getTime() < Date.now();
+    }
+
+    const baseDate = lead.ultimo_contato_em || lead.updated_at || lead.data_criacao;
+    const days = daysAgo(baseDate);
+    return days !== null && days >= 3;
+  };
+
+  const getLeadPriorityScore = (lead: UnifiedLead) => {
+    let score = 0;
+
+    if (isLeadUnattended(lead)) score += 1000;
+    if (isLeadOverdue(lead)) score += 800;
+    if (lead.temperatura === "Quente") score += 500;
+    if (["Proposta", "Simulação enviada"].includes(lead.etapa_funil)) score += 350;
+    if (!lead.gestor_id && !lead.sdr_id && !lead.closer_id && !lead.vendedor_id) score += 250;
+    if (lead.lead_source_type === "partner") score += 60;
+    if (lead.lead_source_type === "paid_traffic") score += 50;
+
+    const age = daysAgo(lead.data_criacao);
+    if (age !== null) score += Math.max(0, 30 - age);
+
+    return score;
+  };
+
+  const baseFilteredLeads = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -383,9 +411,9 @@ export default function ManagerDashboard() {
         (dateFilter === "month" && created >= startOfMonth);
 
       const matchesStatus = statusFilter ? lead.etapa_funil === statusFilter || lead.status === statusFilter : true;
-      const matchesOrigem = origemFilter ? lead.origem?.toLowerCase() === origemFilter.toLowerCase() || lead.tabela_fonte === origemFilter : true;
-      const matchesConsultor = consultorFilter ? lead.vendedor_id === consultorFilter || lead.gestor_id === consultorFilter : true;
-      const matchesBase = minhaBaseFilter ? lead.vendedor_id === user?.id || lead.gestor_id === user?.id : true;
+      const matchesOrigem = origemFilter ? lead.lead_source_type === origemFilter || lead.origem?.toLowerCase() === origemFilter.toLowerCase() : true;
+      const matchesConsultor = consultorFilter ? lead.vendedor_id === consultorFilter || lead.gestor_id === consultorFilter || lead.sdr_id === consultorFilter || lead.closer_id === consultorFilter : true;
+      const matchesBase = minhaBaseFilter ? lead.vendedor_id === user?.id || lead.gestor_id === user?.id || lead.sdr_id === user?.id || lead.closer_id === user?.id : true;
       const matchesSearch = searchTerm
         ? `${lead.nome} ${lead.telefone} ${lead.email || ""} ${lead.motivo || ""}`
             .toLowerCase()
@@ -395,6 +423,53 @@ export default function ManagerDashboard() {
       return matchesDate && matchesStatus && matchesOrigem && matchesConsultor && matchesBase && matchesSearch;
     });
   }, [leads, statusFilter, origemFilter, consultorFilter, dateFilter, minhaBaseFilter, searchTerm, isAdmin, isManager, user?.id]);
+
+  const quickFilterCounts = useMemo(() => {
+    return {
+      all: baseFilteredLeads.length,
+      new: baseFilteredLeads.filter((lead) => lead.etapa_funil === "Novo" || lead.status === "Novo").length,
+      unattended: baseFilteredLeads.filter(isLeadUnattended).length,
+      overdue: baseFilteredLeads.filter(isLeadOverdue).length,
+      hot: baseFilteredLeads.filter((lead) => lead.temperatura === "Quente").length,
+      proposals: baseFilteredLeads.filter((lead) => ["Proposta", "Simulação enviada"].includes(lead.etapa_funil) || lead.status === "Proposta").length,
+      partners: baseFilteredLeads.filter((lead) => lead.lead_source_type === "partner").length,
+      paid: baseFilteredLeads.filter((lead) => lead.lead_source_type === "paid_traffic").length,
+      unassigned: baseFilteredLeads.filter((lead) => !lead.gestor_id && !lead.sdr_id && !lead.closer_id && !lead.vendedor_id).length,
+    };
+  }, [baseFilteredLeads]);
+
+  const filteredLeads = useMemo(() => {
+    const byQuickFilter = baseFilteredLeads.filter((lead) => {
+      if (quickFilter === "all") return true;
+      if (quickFilter === "new") return lead.etapa_funil === "Novo" || lead.status === "Novo";
+      if (quickFilter === "unattended") return isLeadUnattended(lead);
+      if (quickFilter === "overdue") return isLeadOverdue(lead);
+      if (quickFilter === "hot") return lead.temperatura === "Quente";
+      if (quickFilter === "proposals") return ["Proposta", "Simulação enviada"].includes(lead.etapa_funil) || lead.status === "Proposta";
+      if (quickFilter === "partners") return lead.lead_source_type === "partner";
+      if (quickFilter === "paid") return lead.lead_source_type === "paid_traffic";
+      if (quickFilter === "unassigned") return !lead.gestor_id && !lead.sdr_id && !lead.closer_id && !lead.vendedor_id;
+      return true;
+    });
+
+    return [...byQuickFilter].sort((a, b) => {
+      const priorityDiff = getLeadPriorityScore(b) - getLeadPriorityScore(a);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      return new Date(b.data_criacao).getTime() - new Date(a.data_criacao).getTime();
+    });
+  }, [baseFilteredLeads, quickFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredLeads.slice(startIndex, startIndex + pageSize);
+  }, [filteredLeads, pageSize, safeCurrentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, origemFilter, consultorFilter, dateFilter, minhaBaseFilter, quickFilter, pageSize]);
 
   const metrics = useMemo(() => {
     const total = filteredLeads.length;
@@ -649,7 +724,7 @@ export default function ManagerDashboard() {
             p_lead_id: lead.id,
             p_tabela_fonte: lead.tabela_fonte,
             p_base_amount: finValorCarta,
-            p_source_type: lead.lead_source_type || (lead.tabela_fonte === "pistas" ? "partner" : "epsa_base"),
+            p_source_type: lead.lead_source_type || "epsa_base",
             p_source_label: lead.lead_source_label || lead.origem || null,
             p_partner_id: lead.partner_id || null,
             p_gestor_id: lead.gestor_id || null,
@@ -740,7 +815,7 @@ export default function ManagerDashboard() {
         p_lead_id: nextLead.id,
         p_tabela_fonte: nextLead.tabela_fonte,
         p_base_amount: baseAmount,
-        p_source_type: nextLead.lead_source_type || (nextLead.tabela_fonte === "pistas" ? "partner" : "epsa_base"),
+        p_source_type: nextLead.lead_source_type || "epsa_base",
         p_source_label: nextLead.lead_source_label || nextLead.origem || null,
         p_partner_id: nextLead.partner_id || null,
         p_gestor_id: nextLead.gestor_id || null,
@@ -811,6 +886,172 @@ export default function ManagerDashboard() {
     } catch (err) {
       console.error(err);
       toast.error("Erro ao atualizar status financeiro.");
+    }
+  };
+
+  const normalizePhone = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+
+    if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+      digits = digits.slice(2);
+    }
+
+    return digits;
+  };
+
+  const isValidBrazilianPhone = (value: string) => {
+    const digits = normalizePhone(value);
+    return digits.length === 10 || digits.length === 11;
+  };
+
+  const isValidEmail = (value: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
+  };
+
+  const parseMoney = (value: string) => {
+    const cleaned = String(value || "")
+      .replace(/[^\d,.-]/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const resetNewLeadForm = () => {
+    setNewLeadName("");
+    setNewLeadPhone("");
+    setNewLeadEmail("");
+    setNewLeadSourceType("manual");
+    setNewLeadSourcePlatform("");
+    setNewLeadMotivo("");
+    setNewLeadValorCarta("");
+    setNewLeadParcela("");
+    setNewLeadTemLance("Não informado");
+    setNewLeadValorLance("");
+    setNewLeadPrazo("");
+    setNewLeadObservacoes("");
+    setNewLeadAssignToMe(true);
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const nome = newLeadName.trim();
+    const telefone = normalizePhone(newLeadPhone);
+    const email = newLeadEmail.trim().toLowerCase();
+    const valorCarta = parseMoney(newLeadValorCarta);
+    const parcela = parseMoney(newLeadParcela);
+    const valorLance = parseMoney(newLeadValorLance);
+
+    if (!nome) {
+      toast.error("Informe o nome completo do lead.");
+      return;
+    }
+
+    if (!isValidBrazilianPhone(newLeadPhone)) {
+      toast.error("Informe um telefone/WhatsApp válido com DDD. Exemplo: 21999999999.");
+      return;
+    }
+
+    if (!email || !isValidEmail(email)) {
+      toast.error("Informe um e-mail válido do cliente. Exemplo: cliente@email.com.");
+      return;
+    }
+
+    const sourceLabel =
+      SOURCE_TYPE_OPTIONS.find((item) => item.value === newLeadSourceType)?.label ||
+      (newLeadSourceType === "manual" ? "Manual" : "Base EPSA");
+
+    const isConsultant = user?.role === "consultant" || user?.role === "instructor";
+    const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin";
+
+    const observacoesComPrazo = [
+      newLeadObservacoes.trim(),
+      newLeadPrazo.trim() ? `Prazo/urgência informado: ${newLeadPrazo.trim()}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    const payload: any = {
+      name: nome,
+      phone: telefone,
+      email,
+      origin: sourceLabel,
+      status: "Novo",
+      etapa_funil: "Novo",
+      temperatura: "Morno",
+      prioridade: "Normal",
+      motivo: newLeadMotivo.trim() || null,
+      observacoes: observacoesComPrazo || null,
+      valor_carta: valorCarta > 0 ? valorCarta : null,
+      estimated_letter_value: valorCarta > 0 ? valorCarta : null,
+      desired_installment: parcela > 0 ? parcela : null,
+      has_bid_value: newLeadTemLance === "Sim",
+      bid_value: valorLance > 0 ? valorLance : null,
+      comissao_epsa: valorCarta > 0 ? Number((valorCarta * 0.035).toFixed(2)) : 0,
+      comissao_parceiro: 0,
+      status_pagamento: "Pendente",
+      lead_source_type: newLeadSourceType,
+      lead_source_platform: newLeadSourcePlatform.trim() || null,
+      lead_source_label: sourceLabel,
+      created_by: user?.id || null,
+      created_by_role: user?.role || null,
+      contact_authorized: true,
+      contact_authorized_channel: telefone ? "whatsapp" : "email",
+      lgpd_declarado: false,
+      raw_payload: {
+        origem: "manager_manual_form",
+        criado_por: user?.id || null,
+        papel_criador: user?.role || null,
+        prazo_urgencia: newLeadPrazo.trim() || null,
+        tem_lance: newLeadTemLance,
+        valor_lance: valorLance || null,
+      },
+    };
+
+    if (newLeadAssignToMe && isConsultant) {
+      payload.assigned_to = user?.id;
+      payload.vendedor_id = user?.id;
+      payload.closer_id = user?.id;
+    }
+
+    if (newLeadAssignToMe && isManagerOrAdmin) {
+      payload.gestor_id = user?.id;
+    }
+
+    try {
+      setCreatingLead(true);
+      const created = await directApiCall("leads", "POST", payload);
+      const createdLead = Array.isArray(created) ? created[0] : created;
+
+      toast.success("Lead cadastrado na base única EPSA.");
+      setShowNewLeadModal(false);
+      resetNewLeadForm();
+
+      if (createdLead?.id && valorCarta > 0) {
+        try {
+          await directApiCall("rpc/epsa_generate_financial_splits", "POST", {
+            p_lead_id: createdLead.id,
+            p_tabela_fonte: "leads",
+            p_base_amount: valorCarta,
+            p_source_type: newLeadSourceType,
+            p_source_label: sourceLabel,
+            p_partner_id: null,
+            p_gestor_id: payload.gestor_id || null,
+            p_sdr_id: payload.sdr_id || null,
+            p_closer_id: payload.closer_id || payload.vendedor_id || null,
+            p_user_id: user?.id || null,
+          });
+        } catch (scheduleError) {
+          console.warn("Lead criado, mas não foi possível gerar cronograma financeiro:", scheduleError);
+        }
+      }
+
+      await loadAllData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar lead.");
+    } finally {
+      setCreatingLead(false);
     }
   };
 
@@ -904,8 +1145,281 @@ export default function ManagerDashboard() {
     </button>
   );
 
+  const dashboardViews = isConsultantView
+    ? [
+        ["geral", "Minha visão", BarChart3],
+        ["leads", "Meus leads", ClipboardList],
+      ]
+    : [
+        ["geral", "Visão geral", BarChart3],
+        ["funil", "Funil", BarChart3],
+        ["consultores", "Consultores", Users],
+        ["origens", "Origens", Building2],
+        ["financeiro", "Financeiro", Wallet],
+        ["leads", "Leads", ClipboardList],
+      ];
+
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6 px-2 pb-10 sm:px-4">
+      {showNewLeadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">Cadastrar novo lead</h2>
+                <p className="text-sm text-gray-500">Entrada manual na tabela única de leads da EPSA</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewLeadModal(false)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLead} className="space-y-4 p-5">
+              <div className="rounded-xl border border-[#b8995a]/20 bg-[#b8995a]/5 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-[#7a5a1f]">
+                  Orientação de cadastro
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                  Cadastre o lead com dados reais e completos. Nome, telefone e e-mail são obrigatórios.
+                  As informações de crédito ajudam o SDR/consultor a fazer diagnóstico sem começar do zero.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    Nome completo do cliente *
+                  </label>
+                  <input
+                    value={newLeadName}
+                    onChange={(e) => setNewLeadName(e.target.value)}
+                    required
+                    minLength={3}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                    placeholder="Ex.: Marcos Silva"
+                    title="Informe nome e sobrenome do cliente."
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">Use nome e sobrenome para evitar duplicidade.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    Telefone / WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    value={newLeadPhone}
+                    onChange={(e) => setNewLeadPhone(e.target.value)}
+                    required
+                    inputMode="numeric"
+                    pattern="^(\\+?55\\s?)?\\(?\\d{2}\\)?\\s?9?\\d{4}[-\\s]?\\d{4}$"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                    placeholder="Ex.: 21999999999"
+                    title="Informe DDD + número. Exemplo: 21999999999."
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">Obrigatório. Informe DDD + número, sem letras.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    E-mail *
+                  </label>
+                  <input
+                    type="email"
+                    value={newLeadEmail}
+                    onChange={(e) => setNewLeadEmail(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                    placeholder="Ex.: cliente@email.com"
+                    title="Informe um e-mail válido. Exemplo: cliente@email.com."
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">Obrigatório para rastreabilidade e histórico de atendimento.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    Origem
+                  </label>
+                  <select
+                    value={newLeadSourceType}
+                    onChange={(e) => setNewLeadSourceType(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                  >
+                    <option value="manual">Cadastro manual</option>
+                    {SOURCE_TYPE_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                    <option value="webhook">Webhook / Automação</option>
+                    <option value="import">Importação</option>
+                  </select>
+                  <p className="mt-1 text-[10px] text-gray-400">Informe a fonte para medir conversão, CAC e qualidade.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    Plataforma / canal
+                  </label>
+                  <select
+                    value={newLeadSourcePlatform}
+                    onChange={(e) => setNewLeadSourcePlatform(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                  >
+                    <option value="">Não informado</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="google">Google</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="landing_page">Landing page</option>
+                    <option value="partner_page">Página do parceiro</option>
+                  </select>
+                  <p className="mt-1 text-[10px] text-gray-400">Canal de entrada ou plataforma onde o cliente chegou.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                    Interesse / motivo
+                  </label>
+                  <input
+                    value={newLeadMotivo}
+                    onChange={(e) => setNewLeadMotivo(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                    placeholder="Ex.: imóvel, automóvel, recusado pelo banco, investimento..."
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">Contexto principal do interesse ou motivo do cadastro.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                <div className="mb-4">
+                  <p className="text-xs font-black uppercase tracking-wider text-gray-700">Informações de crédito de interesse</p>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                    Preencha valores aproximados. Esses dados não são promessa de aprovação, contemplação ou condição comercial.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  <div>
+                    <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                      Valor da carta
+                    </label>
+                    <input
+                      value={newLeadValorCarta}
+                      onChange={(e) => setNewLeadValorCarta(e.target.value)}
+                      inputMode="decimal"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                      placeholder="Ex.: 300000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                      Parcela desejada
+                    </label>
+                    <input
+                      value={newLeadParcela}
+                      onChange={(e) => setNewLeadParcela(e.target.value)}
+                      inputMode="decimal"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                      placeholder="Ex.: 1500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                      Tem lance?
+                    </label>
+                    <select
+                      value={newLeadTemLance}
+                      onChange={(e) => setNewLeadTemLance(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                    >
+                      <option value="Não informado">Não informado</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                      Valor de lance
+                    </label>
+                    <input
+                      value={newLeadValorLance}
+                      onChange={(e) => setNewLeadValorLance(e.target.value)}
+                      inputMode="decimal"
+                      disabled={newLeadTemLance === "Não"}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none disabled:bg-gray-100"
+                      placeholder="Ex.: 30000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                      Prazo / urgência
+                    </label>
+                    <input
+                      value={newLeadPrazo}
+                      onChange={(e) => setNewLeadPrazo(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                      placeholder="Ex.: 6 meses, 1 ano, sem pressa"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">
+                  Observações
+                </label>
+                <textarea
+                  value={newLeadObservacoes}
+                  onChange={(e) => setNewLeadObservacoes(e.target.value)}
+                  className="min-h-[110px] w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none"
+                  placeholder="Ex.: Cliente busca imóvel, foi recusado no financiamento, tem renda parcialmente informal, aceita conversar pelo WhatsApp e quer entender consórcio sem promessa de contemplação."
+                />
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={newLeadAssignToMe}
+                  onChange={(e) => setNewLeadAssignToMe(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  Vincular este lead a mim inicialmente. Para gestores/admins, o vínculo será como gestor.
+                  Para consultores, o vínculo será como closer/consultor.
+                </span>
+              </label>
+
+              <div className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowNewLeadModal(false)}
+                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingLead}
+                  className="rounded-xl bg-[#0a1a15] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#10261e] disabled:opacity-60"
+                >
+                  {creatingLead ? "Salvando..." : "Salvar lead"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-[#b8995a]/30 bg-[#0a1a15] shadow-sm">
@@ -922,6 +1436,14 @@ export default function ManagerDashboard() {
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={() => setShowNewLeadModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#b8995a] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#a88a4f]"
+          >
+            <Plus className="h-4 w-4" />
+            Novo Lead
+          </button>
+
           <button
             onClick={() => setMinhaBaseFilter(!minhaBaseFilter)}
             className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-all ${
@@ -954,7 +1476,7 @@ export default function ManagerDashboard() {
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto]">
+        <div className="grid gap-3 xl:grid-cols-[1.2fr_0.75fr_0.75fr_0.75fr_0.75fr_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <input
@@ -981,6 +1503,13 @@ export default function ManagerDashboard() {
             ))}
           </select>
 
+          <select value={origemFilter} onChange={(e) => setOrigemFilter(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none">
+            <option value="">Todas as origens</option>
+            {SOURCE_TYPE_OPTIONS.map((source) => (
+              <option key={source.value} value={source.value}>{source.label}</option>
+            ))}
+          </select>
+
           <select value={consultorFilter} onChange={(e) => setConsultorFilter(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-[#b8995a] focus:outline-none">
             <option value="">Todos os responsáveis</option>
             {consultores.map((consultor) => (
@@ -994,6 +1523,7 @@ export default function ManagerDashboard() {
               setStatusFilter("");
               setOrigemFilter("");
               setConsultorFilter("");
+              setQuickFilter("all");
               setDateFilter("30d");
             }}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-50"
@@ -1005,14 +1535,7 @@ export default function ManagerDashboard() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {[
-          ["geral", "Visão geral", BarChart3],
-          ["funil", "Funil", BarChart3],
-          ["consultores", "Consultores", Users],
-          ["origens", "Origens", Building2],
-          ["financeiro", "Financeiro", Wallet],
-          ["leads", "Leads", ClipboardList],
-        ].map(([key, label, Icon]: any) => (
+        {dashboardViews.map(([key, label, Icon]: any) => (
           <button
             key={key}
             onClick={() => setActiveView(key)}
@@ -1316,10 +1839,80 @@ export default function ManagerDashboard() {
       <section className={`rounded-2xl border border-gray-100 bg-white shadow-sm ${activeView !== "leads" && activeView !== "geral" ? "hidden" : ""}`}>
         <div className="flex items-center justify-between border-b border-gray-100 p-5">
           <div>
-            <h2 className="text-lg font-black text-gray-900">Base operacional de leads</h2>
-            <p className="text-sm text-gray-500">Atendimento, distribuição, financeiro e próxima ação</p>
+            <h2 className="text-lg font-black text-gray-900">{isConsultantView ? "Meus leads" : "Base operacional de leads"}</h2>
+            <p className="text-sm text-gray-500">{isConsultantView ? "Atendimento, follow-up e próxima ação" : "Atendimento, distribuição, financeiro e próxima ação"}</p>
           </div>
           <ClipboardList className="h-5 w-5 text-[#b8995a]" />
+        </div>
+
+        <div className="border-b border-gray-100 bg-gray-50/50 px-5 py-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {[
+              ["all", "Todos", quickFilterCounts.all],
+              ["new", "Novos", quickFilterCounts.new],
+              ["unattended", "Sem atendimento", quickFilterCounts.unattended],
+              ["overdue", "Atrasados", quickFilterCounts.overdue],
+              ["hot", "Quentes", quickFilterCounts.hot],
+              ["proposals", "Propostas", quickFilterCounts.proposals],
+              ["partners", "Parceiros", quickFilterCounts.partners],
+              ["paid", "Tráfego", quickFilterCounts.paid],
+              ["unassigned", "Sem responsável", quickFilterCounts.unassigned],
+            ].map(([key, label, total]: any) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setQuickFilter(key)}
+                className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                  quickFilter === key
+                    ? "border-[#0a1a15] bg-[#0a1a15] text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-[#b8995a] hover:text-[#7a5a1f]"
+                }`}
+              >
+                {label} <span className="ml-1 opacity-70">{total}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500">
+              Exibindo {filteredLeads.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+              -{Math.min(safeCurrentPage * pageSize, filteredLeads.length)} de {filteredLeads.length} leads filtrados.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-bold text-gray-600 focus:border-[#b8995a] focus:outline-none"
+              >
+                <option value={10}>10 por página</option>
+                <option value={20}>20 por página</option>
+                <option value={50}>50 por página</option>
+              </select>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 disabled:opacity-40"
+              >
+                Anterior
+              </button>
+
+              <span className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-gray-500">
+                Página {safeCurrentPage} de {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 disabled:opacity-40"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -1332,8 +1925,9 @@ export default function ManagerDashboard() {
             <p className="text-sm font-medium text-gray-600">Nenhum lead encontrado com os filtros atuais.</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {filteredLeads.map((lead) => {
+          <>
+            <div className="divide-y divide-gray-100">
+              {paginatedLeads.map((lead) => {
               const stalledDays = daysAgo(lead.ultimo_contato_em || lead.updated_at || lead.data_criacao);
 
               return (
@@ -1342,10 +1936,16 @@ export default function ManagerDashboard() {
                     <div className="min-w-0">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <p className="truncate text-base font-black text-gray-900">{lead.nome}</p>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${lead.tabela_fonte === "pistas" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${lead.lead_source_type === "partner" ? "bg-green-50 text-green-700" : lead.lead_source_type === "paid_traffic" ? "bg-orange-50 text-orange-700" : "bg-blue-50 text-blue-700"}`}>
                           {lead.origem}
                         </span>
                         <span className={getStatusBadge(lead.etapa_funil)}>{lead.etapa_funil}</span>
+                        {isLeadUnattended(lead) && (
+                          <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-700">Sem atendimento</span>
+                        )}
+                        {isLeadOverdue(lead) && (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">Atenção</span>
+                        )}
                       </div>
 
                       <div className="space-y-1 text-xs text-gray-500">
@@ -1486,6 +2086,35 @@ export default function ManagerDashboard() {
               );
             })}
           </div>
+
+          {filteredLeads.length > pageSize && (
+            <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-500">
+                Página {safeCurrentPage} de {totalPages} · {filteredLeads.length} leads filtrados.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage <= 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 disabled:opacity-40"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </section>
     </div>

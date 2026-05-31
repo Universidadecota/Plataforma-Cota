@@ -102,10 +102,41 @@ export default function CourseCatalogPage() {
           directApiCall('enrollments', 'GET', undefined, `student_id=eq.${user!.id}&select=course_id`)
         ]);
 
-        // ORDENAÇÃO À PROVA DE BALAS: Garante a ordem da Trilha 1 à Trilha 9
-        const sortedCourses = (coursesData || []).sort((a: any, b: any) =>
-          String(a.title || "").trim().localeCompare(String(b.title || "").trim(), 'pt-BR', { numeric: true, sensitivity: 'base' })
-        );
+        // ORDENAÇÃO DO CATÁLOGO:
+// 1. Trilhas primeiro
+// 2. Playbooks depois
+// 3. Dentro de cada grupo, usa order_index
+// 4. Se não houver order_index, usa título como fallback
+const getCourseGroupPriority = (course: any) => {
+  const title = String(course.title || "").toLowerCase();
+
+  if (title.includes("playbook")) return 2;
+  if (title.includes("trilha")) return 1;
+
+  return 3;
+};
+
+const sortedCourses = (coursesData || []).sort((a: any, b: any) => {
+  const groupA = getCourseGroupPriority(a);
+  const groupB = getCourseGroupPriority(b);
+
+  if (groupA !== groupB) {
+    return groupA - groupB;
+  }
+
+  const orderA = Number(a.order_index ?? 999);
+  const orderB = Number(b.order_index ?? 999);
+
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+
+  return String(a.title || "").trim().localeCompare(
+    String(b.title || "").trim(),
+    "pt-BR",
+    { numeric: true, sensitivity: "base" }
+  );
+});
 
         setCourses(sortedCourses);
         setEnrolledIds((enrData || []).map((e: any) => e.course_id));
