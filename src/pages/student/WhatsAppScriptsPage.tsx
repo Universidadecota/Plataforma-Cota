@@ -59,12 +59,49 @@ export default function WhatsAppScriptsPage() {
       try {
         setLoading(true);
         const data = await directApiCall(
-          "whatsapp_scripts", 
-          "GET", 
-          undefined, 
-          "select=*&order=created_at.desc"
-        );
-        setScripts(data || []);
+  "whatsapp_scripts",
+  "GET",
+  undefined,
+  "select=*"
+);
+
+const getScriptOrder = (title: string) => {
+  const match = String(title || "").match(/MCI\s*(\d+)/i);
+
+  if (match) {
+    return Number(match[1]);
+  }
+
+  return 9999;
+};
+
+const sortedData = (data || []).sort((a: any, b: any) => {
+  const categoryA = String(a.category || "");
+  const categoryB = String(b.category || "");
+
+  const categoryCompare = categoryA.localeCompare(categoryB, "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  if (categoryCompare !== 0) {
+    return categoryCompare;
+  }
+
+  const orderA = getScriptOrder(a.title);
+  const orderB = getScriptOrder(b.title);
+
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+
+  return String(a.title || "").localeCompare(String(b.title || ""), "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  });
+});
+
+setScripts(sortedData);
       } catch (error) {
         console.error(error);
         toast.error("Erro ao carregar scripts de WhatsApp.");
